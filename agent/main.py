@@ -95,15 +95,22 @@ async def webhook_handler(request: Request):
                 contexto_lead=lead,
             )
 
-            # Guardar en memoria de conversación
-            await guardar_mensaje(msg.telefono, "user", msg.texto)
-            await guardar_mensaje(msg.telefono, "assistant", respuesta)
+            # Guardar en memoria de conversación (silencioso si falla)
+            try:
+                await guardar_mensaje(msg.telefono, "user", msg.texto)
+                await guardar_mensaje(msg.telefono, "assistant", respuesta)
+            except Exception as e:
+                logger.error(f"Error guardando en memoria para {msg.telefono}: {e}")
 
             # Registrar/actualizar contacto en CRM (no bloqueante si falla)
             await _registrar_contacto(msg.telefono, proyecto_slug, lead)
 
             # Enviar respuesta por WhatsApp
-            await proveedor.enviar_mensaje(msg.telefono, respuesta)
+            try:
+                await proveedor.enviar_mensaje(msg.telefono, respuesta)
+            except Exception as e:
+                logger.error(f"Error enviando mensaje a {msg.telefono}: {e}")
+
             logger.info(f"Respuesta a {msg.telefono} [{proyecto_slug or 'sin proyecto'}]: {respuesta[:80]}")
 
         return {"status": "ok"}

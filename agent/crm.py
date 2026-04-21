@@ -12,8 +12,9 @@ load_dotenv()
 logger = logging.getLogger("agentkit")
 
 # ── Conexión al CRM ────────────────────────────────────────────────────────────
+# Usa CRM_DATABASE_URL si está definida, sino comparte la DATABASE_URL de memoria
 
-_CRM_URL = os.getenv("CRM_DATABASE_URL", "")
+_CRM_URL = os.getenv("CRM_DATABASE_URL") or os.getenv("DATABASE_URL", "")
 
 if _CRM_URL.startswith("postgresql://"):
     _CRM_URL = _CRM_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
