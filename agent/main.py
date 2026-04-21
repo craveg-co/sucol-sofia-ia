@@ -8,7 +8,9 @@ Detecta el proyecto del cliente en 4 pasos: contactos_whatsapp → leads → men
 
 import asyncio
 import os
+import time
 import logging
+from collections import OrderedDict
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import PlainTextResponse
@@ -34,6 +36,27 @@ logger = logging.getLogger("agentkit")
 
 proveedor = obtener_proveedor()
 PORT = int(os.getenv("PORT", 8000))
+
+# ── Deduplicación de mensajes ──────────────────────────────────────────────────
+# Evita procesar el mismo mensaje_id dos veces (reintentos de Meta, message echo)
+_ids_procesados: OrderedDict = OrderedDict()
+_DEDUP_MAX = 1000   # máximo de IDs en memoria
+_DEDUP_TTL = 3600   # segundos antes de expirar un ID
+
+
+def _ya_procesado(mensaje_id: str) -> bool:
+    """True si este mensaje_id ya fue procesado en la última hora. Registra si es nuevo."""
+    if not mensaje_id:
+        return False
+    ahora = time.monotonic()
+    if mensaje_id in _ids_procesados:
+        if ahora - _ids_procesados[mensaje_id] < _DEDUP_TTL:
+            return True
+        del _ids_procesados[mensaje_id]
+    while len(_ids_procesados) >= _DEDUP_MAX:
+        _ids_procesados.popitem(last=False)
+    _ids_procesados[mensaje_id] = ahora
+    return False
 
 
 @asynccontextmanager
@@ -88,6 +111,10 @@ async def webhook_handler(request: Request):
 
         for msg in mensajes:
             if msg.es_propio or not msg.texto:
+                continue
+
+            if _ya_procesado(msg.mensaje_id):
+                logger.info(f"Mensaje duplicado ignorado (id={msg.mensaje_id})")
                 continue
 
             logger.info(f"Mensaje de {msg.telefono}: {msg.texto}")

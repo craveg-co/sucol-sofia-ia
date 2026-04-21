@@ -37,14 +37,28 @@ class ProveedorMeta(ProveedorWhatsApp):
         for entry in body.get("entry", []):
             for change in entry.get("changes", []):
                 value = change.get("value", {})
+                # Ignorar notificaciones de estado (sent/delivered/read)
+                if value.get("statuses"):
+                    continue
+                metadata = value.get("metadata", {})
+                numero_bot = metadata.get("display_phone_number", "")
+                phone_number_id = metadata.get("phone_number_id", "")
                 for msg in value.get("messages", []):
-                    if msg.get("type") == "text":
-                        mensajes.append(MensajeEntrante(
-                            telefono=msg.get("from", ""),
-                            texto=msg.get("text", {}).get("body", ""),
-                            mensaje_id=msg.get("id", ""),
-                            es_propio=False,  # Meta solo envía mensajes entrantes
-                        ))
+                    if msg.get("type") != "text":
+                        continue
+                    remitente = msg.get("from", "")
+                    # Es propio si el remitente coincide con el número del bot
+                    es_propio = bool(
+                        remitente == numero_bot
+                        or remitente == phone_number_id
+                        or msg.get("from_me", False)
+                    )
+                    mensajes.append(MensajeEntrante(
+                        telefono=remitente,
+                        texto=msg.get("text", {}).get("body", ""),
+                        mensaje_id=msg.get("id", ""),
+                        es_propio=es_propio,
+                    ))
         return mensajes
 
     async def enviar_mensaje(self, telefono: str, mensaje: str) -> bool:
