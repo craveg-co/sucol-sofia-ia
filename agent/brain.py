@@ -7,8 +7,10 @@ y un prompt genérico de bienvenida cuando el cliente aún no tiene proyecto asi
 """
 
 import os
+import time
 import yaml
 import logging
+import httpx
 from anthropic import AsyncAnthropic
 from dotenv import load_dotenv
 
@@ -16,6 +18,53 @@ load_dotenv()
 logger = logging.getLogger("agentkit")
 
 client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+# ── Caché del prompt global ────────────────────────────────────────────────────
+_cache_global_prompt: str | None = None
+_cache_timestamp: float = 0.0
+_CACHE_TTL = 300  # 5 minutos
+
+
+async def _obtener_prompt_global() -> str:
+    """
+    Lee el prompt global configurado por el admin desde sofia_config en Supabase.
+    Usa caché de 5 minutos para no consultar en cada mensaje.
+    Retorna "" ante cualquier error o si el valor está vacío.
+    """
+    global _cache_global_prompt, _cache_timestamp
+
+    ahora = time.monotonic()
+    if _cache_global_prompt is not None and (ahora - _cache_timestamp) < _CACHE_TTL:
+        return _cache_global_prompt
+
+    supabase_url = os.getenv("SUPABASE_URL", "")
+    supabase_key = os.getenv("SUPABASE_SERVICE_KEY", "")
+
+    if not supabase_url or not supabase_key:
+        logger.debug("SUPABASE_URL / SUPABASE_SERVICE_KEY no configurados — prompt global omitido")
+        _cache_global_prompt = ""
+        _cache_timestamp = ahora
+        return ""
+
+    try:
+        url = f"{supabase_url}/rest/v1/sofia_config?key=eq.global_prompt&select=value&limit=1"
+        headers = {
+            "apikey": supabase_key,
+            "Authorization": f"Bearer {supabase_key}",
+        }
+        async with httpx.AsyncClient(timeout=5) as http:
+            r = await http.get(url, headers=headers)
+            r.raise_for_status()
+            rows = r.json()
+            valor = rows[0]["value"].strip() if rows and rows[0].get("value") else ""
+    except Exception as e:
+        logger.warning(f"No se pudo leer prompt global de Supabase: {e}")
+        valor = ""
+
+    _cache_global_prompt = valor
+    _cache_timestamp = ahora
+    logger.debug(f"Prompt global cargado ({len(valor)} chars)")
+    return valor
 
 # Prompt base de Sofía — se usa cuando el CRM no tiene proyecto para este cliente
 _PROMPT_BIENVENIDA = """Eres Sofía, la asesora virtual de Sucol Soluciones Urbanísticas.
@@ -161,6 +210,11 @@ async def generar_respuesta(
         prompt_final = sistema_prompt
     else:
         prompt_final = await _prompt_bienvenida_con_proyectos()
+
+    # Inyectar prompt global del admin (si existe) al inicio
+    global_prompt = await _obtener_prompt_global()
+    if global_prompt:
+        prompt_final = global_prompt + "\n\n---\n\n" + prompt_final
 
     # Inyectar contexto CRM completo (lead + lotes)
     contexto_crm = _construir_contexto_crm(contexto_lead, lotes_disponibles or [])
