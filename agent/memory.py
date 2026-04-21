@@ -7,6 +7,7 @@ por número de teléfono usando SQLite (local) o PostgreSQL (producción).
 """
 
 import os
+import ssl
 from datetime import datetime
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -23,15 +24,20 @@ if "?sslmode=" in DATABASE_URL:
     DATABASE_URL = DATABASE_URL.split("?sslmode=")[0]
 
 # Si es PostgreSQL en producción, ajustar el esquema de URL
-# Supabase puede entregar "postgres://" o "postgresql://"
 if DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 elif DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
 
-# SSL requerido para Supabase — asyncpg usa connect_args, no parámetros de URL
+# SSL para Supabase: cifrado sin verificar certificado (pooler usa cert autofirmado)
 is_postgres = DATABASE_URL.startswith("postgresql+asyncpg://")
-connect_args = {"ssl": True} if is_postgres else {}
+if is_postgres:
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE
+    connect_args = {"ssl": ssl_ctx}
+else:
+    connect_args = {}
 
 engine = create_async_engine(DATABASE_URL, echo=False, connect_args=connect_args)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -74,13 +80,6 @@ async def guardar_mensaje(telefono: str, role: str, content: str):
 async def obtener_historial(telefono: str, limite: int = 20) -> list[dict]:
     """
     Recupera los últimos N mensajes de una conversación.
-
-    Args:
-        telefono: Número de teléfono del cliente
-        limite: Máximo de mensajes a recuperar (default: 20)
-
-    Returns:
-        Lista de diccionarios con role y content, en orden cronológico
     """
     async with async_session() as session:
         query = (
@@ -91,10 +90,7 @@ async def obtener_historial(telefono: str, limite: int = 20) -> list[dict]:
         )
         result = await session.execute(query)
         mensajes = result.scalars().all()
-
-        # Invertir para orden cronológico (los más recientes están al final)
         mensajes.reverse()
-
         return [
             {"role": msg.role, "content": msg.content}
             for msg in mensajes
