@@ -6,15 +6,24 @@ Sistema de memoria de Sofía. Guarda el historial de conversaciones
 por número de teléfono usando SQLite (local) o PostgreSQL (producción).
 """
 
+import asyncio
+import logging
 import os
 import ssl
 from datetime import datetime
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import String, Text, DateTime, select, Integer
+import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger("agentkit")
+
+# Credenciales Supabase CRM (leads-sucol) para sincronizar conversaciones
+_SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
+_SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 
 # Configuración de base de datos
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./agentkit.db")
@@ -64,17 +73,47 @@ async def inicializar_db():
         await conn.run_sync(Base.metadata.create_all)
 
 
+async def _sync_a_supabase(telefono: str, role: str, content: str, timestamp: datetime) -> None:
+    """Sincroniza un mensaje a conversaciones_sofia en Supabase. Fire-and-forget."""
+    if not _SUPABASE_URL or not _SUPABASE_SERVICE_KEY:
+        return
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(
+                f"{_SUPABASE_URL}/rest/v1/conversaciones_sofia",
+                headers={
+                    "apikey": _SUPABASE_SERVICE_KEY,
+                    "Authorization": f"Bearer {_SUPABASE_SERVICE_KEY}",
+                    "Content-Type": "application/json",
+                    "Prefer": "return=minimal",
+                },
+                json={
+                    "telefono": telefono,
+                    "role": role,
+                    "content": content,
+                    "timestamp": timestamp.isoformat(),
+                },
+            )
+            if resp.status_code not in (200, 201):
+                logger.warning(f"[Supabase sync] HTTP {resp.status_code}: {resp.text[:120]}")
+    except Exception as exc:
+        logger.warning(f"[Supabase sync] Error al sincronizar mensaje de {telefono}: {exc}")
+
+
 async def guardar_mensaje(telefono: str, role: str, content: str):
-    """Guarda un mensaje en el historial de conversación."""
+    """Guarda un mensaje en el historial de conversación y lo sincroniza a Supabase."""
+    ts = datetime.utcnow()
     async with async_session() as session:
         mensaje = Mensaje(
             telefono=telefono,
             role=role,
             content=content,
-            timestamp=datetime.utcnow()
+            timestamp=ts,
         )
         session.add(mensaje)
         await session.commit()
+    # Sincronización async a Supabase — no bloquea, fallo silencioso
+    asyncio.create_task(_sync_a_supabase(telefono, role, content, ts))
 
 
 async def obtener_historial(telefono: str, limite: int = 20) -> list[dict]:
