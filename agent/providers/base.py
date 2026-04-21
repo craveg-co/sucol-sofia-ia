@@ -18,6 +18,7 @@ class MensajeEntrante:
     texto: str          # Contenido del mensaje
     mensaje_id: str     # ID único del mensaje
     es_propio: bool     # True si lo envió el agente (se ignora)
+    timestamp: int = 0  # Unix epoch segundos (0 = desconocido)
 
 
 class ProveedorWhatsApp(ABC):

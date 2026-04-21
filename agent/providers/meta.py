@@ -58,6 +58,7 @@ class ProveedorMeta(ProveedorWhatsApp):
                         texto=msg.get("text", {}).get("body", ""),
                         mensaje_id=msg.get("id", ""),
                         es_propio=es_propio,
+                        timestamp=int(msg.get("timestamp", 0) or 0),
                     ))
         return mensajes
 

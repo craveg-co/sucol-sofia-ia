@@ -10,6 +10,7 @@ import asyncio
 import os
 import time
 import logging
+from datetime import datetime, timezone
 from collections import OrderedDict
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
@@ -41,11 +42,15 @@ PORT = int(os.getenv("PORT", 8000))
 # Evita procesar el mismo mensaje_id dos veces (reintentos de Meta, message echo)
 _ids_procesados: OrderedDict = OrderedDict()
 _DEDUP_MAX = 1000   # máximo de IDs en memoria
-_DEDUP_TTL = 3600   # segundos antes de expirar un ID
+_DEDUP_TTL = 300    # 5 minutos — alineado con la ventana de antigüedad
+
+# Máximo de segundos que puede tener un mensaje para ser procesado.
+# Meta reintenta webhooks hasta 7 días; ignoramos todo lo que tenga más de 5 minutos.
+_MSG_MAX_EDAD_SEG = 300
 
 
 def _ya_procesado(mensaje_id: str) -> bool:
-    """True si este mensaje_id ya fue procesado en la última hora. Registra si es nuevo."""
+    """True si este mensaje_id ya fue procesado en los últimos 5 minutos. Registra si es nuevo."""
     if not mensaje_id:
         return False
     ahora = time.monotonic()
@@ -57,6 +62,14 @@ def _ya_procesado(mensaje_id: str) -> bool:
         _ids_procesados.popitem(last=False)
     _ids_procesados[mensaje_id] = ahora
     return False
+
+
+def _mensaje_muy_antiguo(timestamp: int) -> bool:
+    """True si el mensaje tiene más de 5 minutos. Descarta reintentos de Meta tras reinicio."""
+    if not timestamp:
+        return False  # sin timestamp no podemos saber, dejamos pasar
+    edad = datetime.now(timezone.utc).timestamp() - timestamp
+    return edad > _MSG_MAX_EDAD_SEG
 
 
 @asynccontextmanager
@@ -111,6 +124,11 @@ async def webhook_handler(request: Request):
 
         for msg in mensajes:
             if msg.es_propio or not msg.texto:
+                continue
+
+            if _mensaje_muy_antiguo(msg.timestamp):
+                edad = int(datetime.now(timezone.utc).timestamp() - msg.timestamp)
+                logger.warning(f"Mensaje descartado: tiene {edad}s de antigüedad (id={msg.mensaje_id})")
                 continue
 
             if _ya_procesado(msg.mensaje_id):
