@@ -143,11 +143,15 @@ async def detectar_proyecto_en_mensaje(mensaje: str) -> dict | None:
     try:
         proyectos = await obtener_proyectos_activos()
         mensaje_lower = mensaje.lower()
+        logger.info(f"CRM detección: {len(proyectos)} proyectos activos | mensaje='{mensaje_lower[:60]}'")
         for p in proyectos:
             slug_legible = p["slug"].replace("_", " ").replace("-", " ")
             nombre_lower = p["nombre"].lower()
+            logger.info(f"  → comparando slug='{slug_legible}' nombre='{nombre_lower}'")
             if slug_legible in mensaje_lower or nombre_lower in mensaje_lower:
+                logger.info(f"  ✓ coincidencia encontrada: {p['slug']}")
                 return await obtener_proyecto_por_slug(p["slug"])
+        logger.info("  ✗ ningún proyecto coincide con el mensaje")
         return None
     except Exception as e:
         logger.error(f"CRM detectar_proyecto_en_mensaje: {e}")
