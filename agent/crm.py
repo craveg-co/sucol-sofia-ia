@@ -1,5 +1,4 @@
 # agent/crm.py — Conexión de Sofía al CRM de Sucol
-# Lee proyectos, leads y lotes desde el Supabase del CRM (solo lectura excepto contactos y leads)
 
 import os
 import ssl
@@ -11,8 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 logger = logging.getLogger("agentkit")
 
-# ── Conexión al CRM ────────────────────────────────────────────────────────────
-# Usa CRM_DATABASE_URL si está definida, sino comparte la DATABASE_URL de memoria
+# ── Conexión ───────────────────────────────────────────────────────────────────
 
 _CRM_URL = os.getenv("CRM_DATABASE_URL") or os.getenv("DATABASE_URL", "")
 
@@ -29,11 +27,7 @@ _crm_engine = None
 _crm_session = None
 
 if _CRM_URL:
-    _crm_engine = create_async_engine(
-        _CRM_URL,
-        echo=False,
-        connect_args={"ssl": _ssl_ctx},
-    )
+    _crm_engine = create_async_engine(_CRM_URL, echo=False, connect_args={"ssl": _ssl_ctx})
     _crm_session = async_sessionmaker(_crm_engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -44,9 +38,8 @@ def _crm_disponible() -> bool:
 # ── Proyectos ──────────────────────────────────────────────────────────────────
 
 async def obtener_proyecto_por_slug(slug: str) -> dict | None:
-    """Lee un proyecto y su system_prompt de la tabla proyectos."""
+    """Lee un proyecto completo por su slug."""
     if not _crm_disponible():
-        logger.warning("CRM_DATABASE_URL no configurada")
         return None
     try:
         async with _crm_session() as session:
@@ -62,31 +55,71 @@ async def obtener_proyecto_por_slug(slug: str) -> dict | None:
 
 
 async def obtener_proyecto_por_telefono(telefono: str) -> dict | None:
-    """Busca el lead por telefono_principal y retorna el proyecto asociado con su system_prompt."""
+    """
+    Detecta el proyecto asignado a un teléfono con esta prioridad:
+    1. contactos_whatsapp (fuente de verdad del chat)
+    2. leads del CRM
+    Si lo encuentra en leads pero no en contactos_whatsapp, lo registra automáticamente.
+    """
     if not _crm_disponible():
         return None
     try:
         async with _crm_session() as session:
+            # 1. Buscar en contactos_whatsapp
             result = await session.execute(
                 text("""
                     SELECT p.*
                     FROM proyectos p
-                    INNER JOIN leads l ON l.proyecto = p.slug
-                    WHERE l.telefono_principal = :telefono
-                      AND p.activo = true
+                    INNER JOIN contactos_whatsapp cw ON cw.proyecto_slug = p.slug
+                    WHERE cw.telefono = :telefono AND p.activo = true
                     LIMIT 1
                 """),
                 {"telefono": telefono},
             )
             row = result.mappings().first()
-            return dict(row) if row else None
+            if row:
+                return dict(row)
+
+            # 2. Buscar en leads
+            result = await session.execute(
+                text("""
+                    SELECT p.*
+                    FROM proyectos p
+                    INNER JOIN leads l ON l.proyecto = p.slug
+                    WHERE l.telefono_principal = :telefono AND p.activo = true
+                    LIMIT 1
+                """),
+                {"telefono": telefono},
+            )
+            row = result.mappings().first()
+            if not row:
+                return None
+
+            proyecto = dict(row)
+
+            # 3. Registrar en contactos_whatsapp para las próximas consultas
+            try:
+                await session.execute(
+                    text("""
+                        INSERT INTO contactos_whatsapp (telefono, proyecto_slug)
+                        VALUES (:telefono, :slug)
+                        ON CONFLICT (telefono) DO UPDATE SET proyecto_slug = EXCLUDED.proyecto_slug
+                    """),
+                    {"telefono": telefono, "slug": proyecto["slug"]},
+                )
+                await session.commit()
+            except Exception as e:
+                logger.warning(f"CRM auto-registro contacto desde lead: {e}")
+
+            return proyecto
+
     except Exception as e:
         logger.error(f"CRM obtener_proyecto_por_telefono: {e}")
         return None
 
 
 async def obtener_proyectos_activos() -> list[dict]:
-    """Retorna todos los proyectos activos (para el prompt genérico de bienvenida)."""
+    """Retorna slug y nombre de todos los proyectos activos."""
     if not _crm_disponible():
         return []
     try:
@@ -98,6 +131,27 @@ async def obtener_proyectos_activos() -> list[dict]:
     except Exception as e:
         logger.error(f"CRM obtener_proyectos_activos: {e}")
         return []
+
+
+async def detectar_proyecto_en_mensaje(mensaje: str) -> dict | None:
+    """
+    Busca si el mensaje menciona el nombre o slug de algún proyecto activo.
+    Retorna el proyecto completo si encuentra coincidencia, None si no.
+    """
+    if not _crm_disponible():
+        return None
+    try:
+        proyectos = await obtener_proyectos_activos()
+        mensaje_lower = mensaje.lower()
+        for p in proyectos:
+            slug_legible = p["slug"].replace("_", " ").replace("-", " ")
+            nombre_lower = p["nombre"].lower()
+            if slug_legible in mensaje_lower or nombre_lower in mensaje_lower:
+                return await obtener_proyecto_por_slug(p["slug"])
+        return None
+    except Exception as e:
+        logger.error(f"CRM detectar_proyecto_en_mensaje: {e}")
+        return None
 
 
 # ── Leads ──────────────────────────────────────────────────────────────────────
@@ -139,12 +193,12 @@ async def actualizar_lead_crm(telefono: str, datos: dict):
 # ── Contactos WhatsApp ─────────────────────────────────────────────────────────
 
 async def crear_o_actualizar_contacto_whatsapp(telefono: str, datos: dict):
-    """Upsert en tabla contactos_whatsapp con telefono como clave."""
-    if not _crm_disponible():
+    """Upsert en contactos_whatsapp usando telefono como clave única."""
+    if not _crm_disponible() or not datos:
         return
     try:
         sets = ", ".join(f"{k} = EXCLUDED.{k}" for k in datos if k != "telefono")
-        cols = ", ".join(["telefono"] + [k for k in datos])
+        cols = ", ".join(["telefono"] + list(datos.keys()))
         vals = ", ".join([":telefono"] + [f":{k}" for k in datos])
         params = {"telefono": telefono, **datos}
         async with _crm_session() as session:

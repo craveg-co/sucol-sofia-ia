@@ -74,24 +74,52 @@ def _mensaje_fallback() -> str:
     )
 
 
-def _construir_contexto_lead(lead: dict) -> str:
-    """Convierte los datos del lead en texto para agregar al system prompt."""
-    if not lead:
-        return ""
-    partes = ["## Información del cliente en el CRM"]
-    if lead.get("nombre_completo"):
-        partes.append(f"- Nombre: {lead['nombre_completo']}")
-    if lead.get("etapa_lead"):
-        partes.append(f"- Etapa: {lead['etapa_lead']}")
-    if lead.get("asesor_responsable"):
-        partes.append(f"- Asesor asignado: {lead['asesor_responsable']}")
-    if lead.get("proyecto"):
-        partes.append(f"- Proyecto de interés: {lead['proyecto']}")
-    partes.append(
-        "\nUsa este contexto para personalizar tu atención. "
-        "Si el cliente ya tiene asesor asignado y necesita algo urgente, "
-        "ofrécele conectarlo directamente con él/ella."
-    )
+def _construir_contexto_crm(lead: dict | None, lotes: list[dict]) -> str:
+    """Construye el bloque de contexto CRM completo para inyectar al system prompt."""
+    partes = []
+
+    if lead:
+        partes.append("## Información del cliente en el CRM")
+        campos = {
+            "nombre_completo": "Nombre",
+            "etapa_lead": "Etapa en el CRM",
+            "asesor_responsable": "Asesor asignado",
+            "proyecto": "Proyecto de interés",
+            "fuente": "Fuente del lead",
+            "presupuesto": "Presupuesto declarado",
+            "notas": "Notas previas",
+        }
+        for campo, etiqueta in campos.items():
+            valor = lead.get(campo)
+            if valor:
+                partes.append(f"- {etiqueta}: {valor}")
+        if lead.get("asesor_responsable"):
+            partes.append(
+                f"\nSi el cliente necesita hablar con alguien, "
+                f"su asesor asignado es {lead['asesor_responsable']}."
+            )
+
+    if lotes:
+        partes.append("\n## Lotes disponibles en este proyecto")
+        partes.append("Usa esta información cuando pregunten por precios, áreas o formas de pago:")
+        for lote in lotes:
+            linea = f"- Lote {lote.get('codigo', 'S/N')}"
+            if lote.get("area_m2"):
+                linea += f" | {lote['area_m2']} m²"
+            if lote.get("precio_total"):
+                linea += f" | Precio: ${lote['precio_total']:,.0f}"
+            if lote.get("separacion_inicial"):
+                linea += f" | Separación: ${lote['separacion_inicial']:,.0f}"
+            if lote.get("cuotas_cantidad") and lote.get("cuota_valor"):
+                linea += f" | {lote['cuotas_cantidad']} cuotas de ${lote['cuota_valor']:,.0f}"
+            partes.append(linea)
+    elif lead and lead.get("proyecto"):
+        partes.append("\n## Disponibilidad de lotes")
+        partes.append(
+            "No hay lotes disponibles en este momento. "
+            "Ofrece al cliente hablar con el asesor para revisar opciones."
+        )
+
     return "\n".join(partes)
 
 
@@ -114,6 +142,7 @@ async def generar_respuesta(
     historial: list[dict],
     sistema_prompt: str | None = None,
     contexto_lead: dict | None = None,
+    lotes_disponibles: list[dict] | None = None,
 ) -> str:
     """
     Genera una respuesta usando Claude API (claude-sonnet-4-6).
@@ -121,26 +150,22 @@ async def generar_respuesta(
     Args:
         mensaje: El mensaje nuevo del cliente
         historial: Mensajes anteriores [{"role": "...", "content": "..."}]
-        sistema_prompt: System prompt del proyecto desde el CRM (prioridad máxima).
-                        Si es None, usa prompt genérico de bienvenida.
-        contexto_lead: Datos del lead desde el CRM para personalizar la respuesta.
-
-    Returns:
-        La respuesta generada por Sofía
+        sistema_prompt: System prompt del proyecto desde el CRM. Si es None, usa bienvenida genérica.
+        contexto_lead: Datos del lead para personalizar la respuesta.
+        lotes_disponibles: Lotes del proyecto para responder preguntas de precios/áreas.
     """
     if not mensaje or len(mensaje.strip()) < 2:
         return _mensaje_fallback()
 
-    # Determinar el system prompt a usar
     if sistema_prompt:
         prompt_final = sistema_prompt
     else:
-        # Sin proyecto asignado → prompt genérico con lista de proyectos
         prompt_final = await _prompt_bienvenida_con_proyectos()
 
-    # Inyectar contexto del lead si existe
-    if contexto_lead:
-        prompt_final += "\n\n" + _construir_contexto_lead(contexto_lead)
+    # Inyectar contexto CRM completo (lead + lotes)
+    contexto_crm = _construir_contexto_crm(contexto_lead, lotes_disponibles or [])
+    if contexto_crm:
+        prompt_final += "\n\n" + contexto_crm
 
     mensajes = [{"role": m["role"], "content": m["content"]} for m in historial]
     mensajes.append({"role": "user", "content": mensaje})
@@ -153,9 +178,7 @@ async def generar_respuesta(
             messages=mensajes,
         )
         respuesta = response.content[0].text
-        logger.info(
-            f"Respuesta generada ({response.usage.input_tokens} in / {response.usage.output_tokens} out)"
-        )
+        logger.info(f"Respuesta generada ({response.usage.input_tokens} in / {response.usage.output_tokens} out)")
         return respuesta
 
     except Exception as e:
