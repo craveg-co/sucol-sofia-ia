@@ -3,7 +3,7 @@
 
 """
 Sistema de memoria de Sofía. Guarda el historial de conversaciones
-por número de teléfono usando SQLite (local) o PostgreSQL (producción en Railway).
+por número de teléfono usando SQLite (local) o PostgreSQL (producción).
 """
 
 import os
@@ -18,6 +18,10 @@ load_dotenv()
 # Configuración de base de datos
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./agentkit.db")
 
+# Remover ?sslmode=require si viene en la URL (asyncpg no lo soporta como parámetro)
+if "?sslmode=" in DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.split("?sslmode=")[0]
+
 # Si es PostgreSQL en producción, ajustar el esquema de URL
 # Supabase puede entregar "postgres://" o "postgresql://"
 if DATABASE_URL.startswith("postgresql://"):
@@ -25,7 +29,10 @@ if DATABASE_URL.startswith("postgresql://"):
 elif DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
 
-connect_args = {"ssl": True} if DATABASE_URL.startswith("postgresql") else {}
+# SSL requerido para Supabase — asyncpg usa connect_args, no parámetros de URL
+is_postgres = DATABASE_URL.startswith("postgresql+asyncpg://")
+connect_args = {"ssl": True} if is_postgres else {}
+
 engine = create_async_engine(DATABASE_URL, echo=False, connect_args=connect_args)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
