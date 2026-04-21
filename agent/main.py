@@ -16,7 +16,8 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import PlainTextResponse
 from dotenv import load_dotenv
 
-from agent.brain import generar_respuesta
+from agent.brain import generar_respuesta_con_tools
+from agent.tools import confirmar_cita
 from agent.memory import inicializar_db, guardar_mensaje, obtener_historial
 from agent.providers import obtener_proveedor
 from agent.crm import (
@@ -142,9 +143,10 @@ async def webhook_handler(request: Request):
                 f"| lotes={len(lotes)}"
             )
 
-            # ── Generar respuesta
+            # ── Generar respuesta con soporte de tool_use (confirmar_cita)
+            tool_calls: list[dict] = []
             try:
-                respuesta = await generar_respuesta(
+                respuesta, tool_calls = await generar_respuesta_con_tools(
                     mensaje=msg.texto,
                     historial=historial,
                     sistema_prompt=sistema_prompt,
@@ -168,6 +170,14 @@ async def webhook_handler(request: Request):
                 logger.error(f"Error enviando mensaje a {msg.telefono}: {e}")
 
             logger.info(f"Respuesta a {msg.telefono} [{proyecto_slug or 'sin proyecto'}]: {respuesta[:80]}")
+
+            # ── Ejecutar tool calls después de responder al cliente ───────────
+            for tc in tool_calls:
+                if tc["name"] == "confirmar_cita":
+                    try:
+                        await confirmar_cita(telefono=msg.telefono, **tc["input"])
+                    except Exception as e:
+                        logger.error(f"Error ejecutando confirmar_cita para {msg.telefono}: {e}")
 
         return {"status": "ok"}
 

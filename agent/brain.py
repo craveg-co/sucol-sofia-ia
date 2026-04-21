@@ -186,6 +186,132 @@ async def _prompt_bienvenida_con_proyectos() -> str:
     return _PROMPT_BIENVENIDA.format(lista_proyectos=lista)
 
 
+_TOOL_CONFIRMAR_CITA = {
+    "name": "confirmar_cita",
+    "description": (
+        "Confirma y agenda una cita virtual con el cliente de Sucol. "
+        "Llama esta herramienta SOLO cuando el cliente haya acordado explícitamente "
+        "fecha, hora y tipo de cita."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "tipo_cita": {
+                "type": "string",
+                "description": "Tipo de cita. Ej: 'Cita Virtual', 'Visita al proyecto'",
+            },
+            "fecha": {
+                "type": "string",
+                "description": "Fecha acordada en formato YYYY-MM-DD",
+            },
+            "hora": {
+                "type": "string",
+                "description": "Hora acordada en formato HH:MM",
+            },
+            "resumen_conversacion": {
+                "type": "string",
+                "description": "Breve resumen de lo que el cliente busca y acordó",
+            },
+            "nombre_cliente": {
+                "type": "string",
+                "description": "Nombre completo del cliente",
+            },
+            "video_url": {
+                "type": "string",
+                "description": "Enlace de videollamada si aplica. Dejar vacío si no hay.",
+            },
+        },
+        "required": ["tipo_cita", "fecha", "hora", "resumen_conversacion", "nombre_cliente"],
+    },
+}
+
+
+async def generar_respuesta_con_tools(
+    mensaje: str,
+    historial: list[dict],
+    sistema_prompt: str | None = None,
+    contexto_lead: dict | None = None,
+    lotes_disponibles: list[dict] | None = None,
+) -> tuple[str, list[dict]]:
+    """
+    Como generar_respuesta() pero con soporte de tool_use.
+    Retorna (texto_respuesta, lista_tool_calls) donde cada item es {"name": str, "input": dict}.
+    Gestiona el loop multi-turno internamente: si Claude invoca confirmar_cita,
+    responde con un resultado optimista y obtiene el mensaje final de confirmación.
+    La ejecución real de confirmar_cita la hace el llamador (main.py).
+    """
+    if not mensaje or len(mensaje.strip()) < 2:
+        return _mensaje_fallback(), []
+
+    if sistema_prompt and sistema_prompt.strip():
+        prompt_final = sistema_prompt
+    else:
+        prompt_final = await _prompt_bienvenida_con_proyectos()
+
+    global_prompt = await _obtener_prompt_global()
+    if global_prompt:
+        prompt_final = global_prompt + "\n\n---\n\n" + prompt_final
+
+    contexto_crm = _construir_contexto_crm(contexto_lead, lotes_disponibles or [])
+    if contexto_crm:
+        prompt_final += "\n\n" + contexto_crm
+
+    mensajes: list = [{"role": m["role"], "content": m["content"]} for m in historial]
+    mensajes.append({"role": "user", "content": mensaje})
+
+    herramientas_ejecutadas: list[dict] = []
+
+    try:
+        response = await client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1024,
+            system=prompt_final,
+            messages=mensajes,
+            tools=[_TOOL_CONFIRMAR_CITA],
+        )
+
+        if response.stop_reason == "tool_use":
+            tool_uses = [b for b in response.content if b.type == "tool_use"]
+            tool_results = []
+
+            for tu in tool_uses:
+                herramientas_ejecutadas.append({"name": tu.name, "input": tu.input})
+                # Resultado optimista — la ejecución real ocurre en main.py tras responder al cliente
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": tu.id,
+                    "content": "Cita registrada exitosamente.",
+                })
+
+            mensajes_con_resultado = mensajes + [
+                {"role": "assistant", "content": response.content},
+                {"role": "user", "content": tool_results},
+            ]
+
+            response2 = await client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=1024,
+                system=prompt_final,
+                messages=mensajes_con_resultado,
+                tools=[_TOOL_CONFIRMAR_CITA],
+            )
+            respuesta = response2.content[0].text
+            logger.info(
+                f"Respuesta con tool_use "
+                f"({response.usage.input_tokens}+{response2.usage.input_tokens} in / "
+                f"{response2.usage.output_tokens} out)"
+            )
+        else:
+            respuesta = response.content[0].text
+            logger.info(f"Respuesta generada ({response.usage.input_tokens} in / {response.usage.output_tokens} out)")
+
+        return respuesta, herramientas_ejecutadas
+
+    except Exception as e:
+        logger.error(f"Error Claude API (con tools): {e}")
+        return _mensaje_error(), []
+
+
 async def generar_respuesta(
     mensaje: str,
     historial: list[dict],

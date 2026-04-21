@@ -221,6 +221,39 @@ async def crear_o_actualizar_contacto_whatsapp(telefono: str, datos: dict):
 
 # ── Lotes ──────────────────────────────────────────────────────────────────────
 
+async def crear_agendamiento(datos: dict) -> dict | None:
+    """
+    Inserta una cita en la tabla agendamientos de Supabase.
+
+    Campos esperados en datos:
+        lead_id, tipo_cita, fecha_visita, hora_llamada, resumen_conversacion,
+        estado, asesor_id, asesor_asignado, video_url
+    Retorna el registro creado con su id, o None si falla.
+    """
+    if not _crm_disponible():
+        return None
+    try:
+        async with _crm_session() as session:
+            result = await session.execute(
+                text("""
+                    INSERT INTO agendamientos
+                        (lead_id, tipo_cita, fecha_visita, hora_llamada,
+                         resumen_conversacion, estado, asesor_id, asesor_asignado, video_url)
+                    VALUES
+                        (:lead_id, :tipo_cita, :fecha_visita, :hora_llamada,
+                         :resumen_conversacion, :estado, :asesor_id, :asesor_asignado, :video_url)
+                    RETURNING *
+                """),
+                datos,
+            )
+            await session.commit()
+            row = result.mappings().first()
+            return dict(row) if row else None
+    except Exception as e:
+        logger.error(f"CRM crear_agendamiento: {e}")
+        return None
+
+
 async def obtener_lotes_disponibles(proyecto_slug: str) -> list[dict]:
     """Retorna lotes con estado='disponible' de un proyecto."""
     if not _crm_disponible():
