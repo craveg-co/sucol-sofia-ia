@@ -55,6 +55,24 @@ async def health_check():
     return {"status": "ok", "agente": "Sofía", "negocio": "Sucol Soluciones Urbanísticas"}
 
 
+@app.get("/debug/{telefono}")
+async def debug_contexto(telefono: str, mensaje: str = "santa elena"):
+    """Diagnóstico: muestra qué contexto CRM resuelve Sofía para un teléfono."""
+    from agent.crm import obtener_proyecto_por_telefono, detectar_proyecto_en_mensaje, obtener_lead, obtener_lotes_disponibles
+    proyecto = await _detectar_proyecto(telefono, mensaje)
+    lead = await obtener_lead(telefono)
+    lotes = await obtener_lotes_disponibles(proyecto.get("slug")) if proyecto else []
+    return {
+        "telefono": telefono,
+        "proyecto_encontrado": proyecto.get("slug") if proyecto else None,
+        "tiene_system_prompt": bool(proyecto.get("system_prompt")) if proyecto else False,
+        "largo_system_prompt": len(proyecto.get("system_prompt") or "") if proyecto else 0,
+        "lead_encontrado": bool(lead),
+        "lead_nombre": lead.get("nombre_completo") if lead else None,
+        "lotes_disponibles": len(lotes),
+    }
+
+
 @app.get("/webhook")
 async def webhook_verificacion(request: Request):
     resultado = await proveedor.validar_webhook(request)
@@ -85,9 +103,17 @@ async def webhook_handler(request: Request):
 
             # ── Paso 4: lotes del proyecto (requiere saber el proyecto)
             proyecto_slug = proyecto.get("slug") if proyecto else None
+            proyecto_nombre = proyecto.get("nombre") if proyecto else None
             lotes = await _gather_uno(obtener_lotes_disponibles(proyecto_slug)) if proyecto_slug else []
 
             sistema_prompt = proyecto.get("system_prompt") if proyecto else None
+
+            logger.info(
+                f"Contexto {msg.telefono} → proyecto={proyecto_slug or 'ninguno'} "
+                f"| prompt={'sí' if sistema_prompt else 'NULL/vacío'} "
+                f"| lead={'sí' if lead else 'no'} "
+                f"| lotes={len(lotes)}"
+            )
 
             # ── Generar respuesta
             try:

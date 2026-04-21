@@ -157,7 +157,7 @@ async def generar_respuesta(
     if not mensaje or len(mensaje.strip()) < 2:
         return _mensaje_fallback()
 
-    if sistema_prompt:
+    if sistema_prompt and sistema_prompt.strip():
         prompt_final = sistema_prompt
     else:
         prompt_final = await _prompt_bienvenida_con_proyectos()
