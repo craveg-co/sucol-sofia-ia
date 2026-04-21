@@ -11,19 +11,12 @@ import yaml
 import logging
 from datetime import datetime
 
-from agent.crm import crear_agendamiento, obtener_lead
-from agent.providers.meta import ProveedorMeta
+from agent.crm import crear_agendamiento, obtener_lead, obtener_asesor_de_lead
+from agent.providers import obtener_proveedor
 
 logger = logging.getLogger("agentkit")
 
-_meta_proveedor: ProveedorMeta | None = None
-
-
-def _obtener_meta() -> ProveedorMeta:
-    global _meta_proveedor
-    if _meta_proveedor is None:
-        _meta_proveedor = ProveedorMeta()
-    return _meta_proveedor
+_proveedor = obtener_proveedor()
 
 
 def cargar_info_negocio() -> dict:
@@ -94,21 +87,12 @@ def buscar_en_knowledge(consulta: str) -> str:
 # HERRAMIENTA: Agendamiento de citas
 # ════════════════════════════════════════
 
-# Almacenamiento simple en memoria (en producción se usaría una DB)
+# DEPRECATED — reemplazado por tool_use de Claude + confirmar_cita()
 _citas_pendientes: dict[str, dict] = {}
 
 
 def iniciar_agendamiento(telefono: str, nombre: str) -> str:
-    """
-    Inicia el proceso de agendamiento de cita para un cliente.
-
-    Args:
-        telefono: Número del cliente
-        nombre: Nombre completo del cliente
-
-    Returns:
-        Mensaje de confirmación
-    """
+    # DEPRECATED — Sofia ya no usa este flujo de dos pasos
     _citas_pendientes[telefono] = {
         "nombre": nombre,
         "estado": "pendiente_disponibilidad",
@@ -120,83 +104,92 @@ def iniciar_agendamiento(telefono: str, nombre: str) -> str:
 
 async def confirmar_cita(
     telefono: str,
-    tipo_cita: str,
-    fecha: str,
-    hora: str,
-    resumen_conversacion: str,
     nombre_cliente: str,
+    tipo_cita: str,
+    fecha_cita: str,
+    hora_cita: str,
+    resumen: str,
     video_url: str = "",
 ) -> str:
     """
-    Confirma y persiste una cita en Supabase y notifica al asesor via Meta plantilla.
+    Guarda la cita en Supabase y notifica al asesor por WhatsApp.
 
     Args:
-        telefono: Número del cliente (para buscar su lead)
-        tipo_cita: "Cita Virtual" u otro tipo
-        fecha: Fecha en formato YYYY-MM-DD
-        hora: Hora en formato HH:MM
-        resumen_conversacion: Resumen generado por Sofía
-        nombre_cliente: Nombre del cliente para la notificación
+        telefono: Número del cliente (para localizar su lead y asesor)
+        nombre_cliente: Nombre completo del cliente
+        tipo_cita: Ej. "Cita Virtual", "Visita Presencial"
+        fecha_cita: Fecha en formato YYYY-MM-DD
+        hora_cita: Hora en formato HH:MM
+        resumen: Resumen de lo que conversó el cliente con Sofía
         video_url: Enlace de videollamada (opcional)
 
     Returns:
-        Mensaje indicando el resultado
+        Mensaje de confirmación para transmitir al cliente
     """
-    # ── Buscar el lead para obtener IDs del asesor ────────────────────────────
+    # ── Obtener lead (necesitamos lead_id para el INSERT) ─────────────────────
     lead = await obtener_lead(telefono)
     if not lead:
-        logger.warning(f"confirmar_cita: no se encontró lead para {telefono} — cita no guardada")
-        return "No se pudo guardar la cita: lead no encontrado."
+        logger.warning(f"confirmar_cita: lead no encontrado para {telefono}")
+        return "Hubo un problema al agendar la cita. Por favor intenta de nuevo."
 
     lead_id = lead.get("id")
-    asesor_id = lead.get("asesor_id")
-    asesor_nombre = lead.get("asesor_responsable") or lead.get("asesor_asignado") or "Asesor Sucol"
-    asesor_telefono = lead.get("asesor_telefono") or lead.get("telefono_asesor") or ""
 
-    # ── Guardar la cita en Supabase ───────────────────────────────────────────
-    datos_agendamiento = {
+    # ── Obtener asesor desde la tabla asesores ────────────────────────────────
+    asesor = await obtener_asesor_de_lead(telefono)
+    asesor_id = asesor.get("id") if asesor else None
+    asesor_nombre = asesor.get("nombre") if asesor else (lead.get("asesor_responsable") or "Asesor Sucol")
+    asesor_telefono = asesor.get("telefono") if asesor else ""
+
+    # ── Guardar en Supabase ───────────────────────────────────────────────────
+    agendamiento = await crear_agendamiento({
         "lead_id": lead_id,
         "tipo_cita": tipo_cita,
-        "fecha_visita": fecha,
-        "hora_llamada": hora,
-        "resumen_conversacion": resumen_conversacion,
+        "fecha_visita": fecha_cita,
+        "hora_llamada": hora_cita,
+        "resumen_conversacion": resumen,
         "estado": "PENDIENTE",
         "asesor_id": asesor_id,
         "asesor_asignado": asesor_nombre,
         "video_url": video_url or "",
-    }
-    agendamiento = await crear_agendamiento(datos_agendamiento)
+    })
+
     if not agendamiento:
-        logger.error(f"confirmar_cita: falló el INSERT para lead {lead_id} ({telefono})")
-        return "No se pudo registrar la cita en el sistema."
+        logger.error(f"confirmar_cita: INSERT fallido para lead {lead_id} ({telefono})")
+        return "Hubo un problema al agendar la cita. Por favor intenta de nuevo."
 
-    logger.info(f"Cita creada: id={agendamiento.get('id')} lead={lead_id} fecha={fecha} {hora}")
+    logger.info(f"Cita creada id={agendamiento.get('id')} lead={lead_id} {fecha_cita} {hora_cita}")
 
-    # ── Notificar al asesor por WhatsApp (plantilla Meta) ────────────────────
+    # ── Notificar al asesor (plantilla Meta) ──────────────────────────────────
     if not asesor_telefono:
-        logger.warning(f"confirmar_cita: asesor sin teléfono para lead {lead_id} — notificación omitida")
-    else:
-        try:
-            meta = _obtener_meta()
-            enviado = await meta.enviar_plantilla_cita_asesor(
-                telefono_asesor=asesor_telefono,
-                asesor_nombre=asesor_nombre,
-                tipo_cita=tipo_cita,
-                fecha_cita=fecha,
-                hora_cita=hora,
-                nombre_cliente=nombre_cliente,
-                telefono_cliente=telefono,
-                resumen_conversacion=resumen_conversacion,
-                video_url=video_url or "",
-            )
-            if enviado:
-                logger.info(f"Notificación enviada a asesor {asesor_nombre} ({asesor_telefono})")
-            else:
-                logger.warning(f"No se pudo enviar notificación al asesor {asesor_telefono}")
-        except Exception as e:
-            logger.error(f"confirmar_cita: error enviando plantilla al asesor: {e}")
+        logger.warning(f"confirmar_cita: asesor sin teléfono (lead={lead_id}) — notificación omitida")
+        return f"Cita agendada para el {fecha_cita} a las {hora_cita}. Un asesor se pondrá en contacto contigo."
 
-    return f"Cita registrada: {tipo_cita} el {fecha} a las {hora}."
+    try:
+        if not hasattr(_proveedor, "enviar_plantilla_cita_asesor"):
+            logger.warning("confirmar_cita: el proveedor actual no soporta plantillas — notificación omitida")
+            return f"Cita agendada para el {fecha_cita} a las {hora_cita}. Un asesor se pondrá en contacto contigo."
+
+        enviado = await _proveedor.enviar_plantilla_cita_asesor(
+            telefono_asesor=asesor_telefono,
+            asesor_nombre=asesor_nombre,
+            tipo_cita=tipo_cita,
+            fecha_cita=fecha_cita,
+            hora_cita=hora_cita,
+            nombre_cliente=nombre_cliente,
+            telefono_cliente=telefono,
+            resumen_conversacion=resumen,
+            video_url=video_url or "",
+        )
+    except Exception as e:
+        logger.error(f"confirmar_cita: error enviando plantilla al asesor {asesor_telefono}: {e}")
+        enviado = False
+
+    if enviado:
+        logger.info(f"Notificación enviada a {asesor_nombre} ({asesor_telefono})")
+        return f"Cita agendada para el {fecha_cita} a las {hora_cita}. Tu asesor fue notificado."
+
+    logger.warning(f"confirmar_cita: plantilla no enviada a {asesor_telefono}")
+    return f"Cita agendada para el {fecha_cita} a las {hora_cita}. Un asesor se pondrá en contacto contigo."
 
 
 # ════════════════════════════════════════

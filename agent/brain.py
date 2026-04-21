@@ -189,39 +189,38 @@ async def _prompt_bienvenida_con_proyectos() -> str:
 _TOOL_CONFIRMAR_CITA = {
     "name": "confirmar_cita",
     "description": (
-        "Confirma y agenda una cita virtual con el cliente de Sucol. "
-        "Llama esta herramienta SOLO cuando el cliente haya acordado explícitamente "
-        "fecha, hora y tipo de cita."
+        "Agenda una cita en el CRM y notifica al asesor por WhatsApp cuando el cliente "
+        "confirma fecha, hora y tipo de cita."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
-            "tipo_cita": {
-                "type": "string",
-                "description": "Tipo de cita. Ej: 'Cita Virtual', 'Visita al proyecto'",
-            },
-            "fecha": {
-                "type": "string",
-                "description": "Fecha acordada en formato YYYY-MM-DD",
-            },
-            "hora": {
-                "type": "string",
-                "description": "Hora acordada en formato HH:MM",
-            },
-            "resumen_conversacion": {
-                "type": "string",
-                "description": "Breve resumen de lo que el cliente busca y acordó",
-            },
             "nombre_cliente": {
                 "type": "string",
                 "description": "Nombre completo del cliente",
             },
+            "tipo_cita": {
+                "type": "string",
+                "description": "Tipo de cita: Cita Virtual, Visita Presencial, Llamada",
+            },
+            "fecha_cita": {
+                "type": "string",
+                "description": "Fecha en formato YYYY-MM-DD",
+            },
+            "hora_cita": {
+                "type": "string",
+                "description": "Hora en formato HH:MM",
+            },
+            "resumen": {
+                "type": "string",
+                "description": "Resumen breve de lo que conversó el cliente con Sofia",
+            },
             "video_url": {
                 "type": "string",
-                "description": "Enlace de videollamada si aplica. Dejar vacío si no hay.",
+                "description": "Enlace de videollamada, dejar vacío si no aplica",
             },
         },
-        "required": ["tipo_cita", "fecha", "hora", "resumen_conversacion", "nombre_cliente"],
+        "required": ["nombre_cliente", "tipo_cita", "fecha_cita", "hora_cita", "resumen"],
     },
 }
 
@@ -232,16 +231,18 @@ async def generar_respuesta_con_tools(
     sistema_prompt: str | None = None,
     contexto_lead: dict | None = None,
     lotes_disponibles: list[dict] | None = None,
-) -> tuple[str, list[dict]]:
+    telefono: str = "",
+) -> str:
     """
     Como generar_respuesta() pero con soporte de tool_use.
-    Retorna (texto_respuesta, lista_tool_calls) donde cada item es {"name": str, "input": dict}.
-    Gestiona el loop multi-turno internamente: si Claude invoca confirmar_cita,
-    responde con un resultado optimista y obtiene el mensaje final de confirmación.
-    La ejecución real de confirmar_cita la hace el llamador (main.py).
+    Cuando Claude invoca confirmar_cita, ejecuta la herramienta real y le devuelve
+    el resultado antes de obtener el mensaje final para el cliente.
+    Retorna solo el texto de respuesta para el cliente.
     """
+    from agent.tools import confirmar_cita  # import local para evitar ciclos en módulo
+
     if not mensaje or len(mensaje.strip()) < 2:
-        return _mensaje_fallback(), []
+        return _mensaje_fallback()
 
     if sistema_prompt and sistema_prompt.strip():
         prompt_final = sistema_prompt
@@ -259,8 +260,6 @@ async def generar_respuesta_con_tools(
     mensajes: list = [{"role": m["role"], "content": m["content"]} for m in historial]
     mensajes.append({"role": "user", "content": mensaje})
 
-    herramientas_ejecutadas: list[dict] = []
-
     try:
         response = await client.messages.create(
             model="claude-sonnet-4-6",
@@ -275,12 +274,22 @@ async def generar_respuesta_con_tools(
             tool_results = []
 
             for tu in tool_uses:
-                herramientas_ejecutadas.append({"name": tu.name, "input": tu.input})
-                # Resultado optimista — la ejecución real ocurre en main.py tras responder al cliente
+                if tu.name == "confirmar_cita":
+                    try:
+                        resultado_tool = await confirmar_cita(
+                            telefono=telefono,
+                            **tu.input,
+                        )
+                    except Exception as e:
+                        logger.error(f"Error ejecutando confirmar_cita en tool_use: {e}")
+                        resultado_tool = "Hubo un problema al agendar la cita. Por favor intenta de nuevo."
+                else:
+                    resultado_tool = f"Herramienta {tu.name} no reconocida."
+
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": tu.id,
-                    "content": "Cita registrada exitosamente.",
+                    "content": resultado_tool,
                 })
 
             mensajes_con_resultado = mensajes + [
@@ -305,11 +314,11 @@ async def generar_respuesta_con_tools(
             respuesta = response.content[0].text
             logger.info(f"Respuesta generada ({response.usage.input_tokens} in / {response.usage.output_tokens} out)")
 
-        return respuesta, herramientas_ejecutadas
+        return respuesta
 
     except Exception as e:
         logger.error(f"Error Claude API (con tools): {e}")
-        return _mensaje_error(), []
+        return _mensaje_error()
 
 
 async def generar_respuesta(

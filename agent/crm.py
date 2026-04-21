@@ -275,3 +275,50 @@ async def obtener_lotes_disponibles(proyecto_slug: str) -> list[dict]:
     except Exception as e:
         logger.error(f"CRM obtener_lotes_disponibles: {e}")
         return []
+
+
+# ── Asesores ───────────────────────────────────────────────────────────────────
+
+async def obtener_asesor_por_nombre(nombre: str) -> dict | None:
+    """Busca un asesor activo por nombre (búsqueda parcial, case-insensitive)."""
+    if not _crm_disponible():
+        return None
+    try:
+        async with _crm_session() as session:
+            result = await session.execute(
+                text("""
+                    SELECT id, nombre, email, telefono
+                    FROM asesores
+                    WHERE activo = true
+                    AND lower(nombre) LIKE lower(:nombre)
+                    LIMIT 1
+                """),
+                {"nombre": f"%{nombre}%"},
+            )
+            row = result.mappings().first()
+            if row:
+                logger.info(f"CRM asesor encontrado: {row['nombre']} ({row['telefono']})")
+                return dict(row)
+            logger.info(f"CRM asesor no encontrado para nombre='{nombre}'")
+            return None
+    except Exception as e:
+        logger.error(f"CRM obtener_asesor_por_nombre: {e}")
+        return None
+
+
+async def obtener_asesor_de_lead(telefono_cliente: str) -> dict | None:
+    """
+    Retorna el asesor asignado al lead del cliente dado.
+    Flujo: lead(telefono) → asesor_responsable → asesores(nombre) → dict asesor.
+    """
+    lead = await obtener_lead(telefono_cliente)
+    if not lead:
+        logger.info(f"CRM obtener_asesor_de_lead: lead no encontrado para {telefono_cliente}")
+        return None
+
+    nombre_asesor: str = lead.get("asesor_responsable") or ""
+    if not nombre_asesor:
+        logger.info(f"CRM obtener_asesor_de_lead: lead {telefono_cliente} sin asesor_responsable")
+        return None
+
+    return await obtener_asesor_por_nombre(nombre_asesor)
