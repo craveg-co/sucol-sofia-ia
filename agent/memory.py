@@ -116,7 +116,7 @@ async def guardar_mensaje(telefono: str, role: str, content: str):
     asyncio.create_task(_sync_a_supabase(telefono, role, content, ts))
 
 
-async def obtener_historial(telefono: str, limite: int = 20) -> list[dict]:
+async def obtener_historial(telefono: str, limite: int = 30) -> list[dict]:
     """
     Recupera los últimos N mensajes de una conversación.
     """
