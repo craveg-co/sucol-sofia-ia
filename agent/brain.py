@@ -41,7 +41,7 @@ async def _obtener_prompt_global() -> str:
     supabase_key = os.getenv("SUPABASE_SERVICE_KEY", "")
 
     if not supabase_url or not supabase_key:
-        logger.debug("SUPABASE_URL / SUPABASE_SERVICE_KEY no configurados — prompt global omitido")
+        logger.warning("SUPABASE_URL / SUPABASE_SERVICE_KEY no configurados — prompt global omitido")
         _cache_global_prompt = ""
         _cache_timestamp = ahora
         return ""
@@ -56,6 +56,7 @@ async def _obtener_prompt_global() -> str:
             r = await http.get(url, headers=headers)
             r.raise_for_status()
             rows = r.json()
+            logger.info(f"sofia_config respuesta cruda: {rows}")
             valor = rows[0]["global_prompt"].strip() if rows and rows[0].get("global_prompt") else ""
     except Exception as e:
         logger.warning(f"No se pudo leer prompt global de Supabase: {e}")
@@ -63,7 +64,7 @@ async def _obtener_prompt_global() -> str:
 
     _cache_global_prompt = valor
     _cache_timestamp = ahora
-    logger.debug(f"Prompt global cargado ({len(valor)} chars)")
+    logger.info(f"Prompt global cargado ({len(valor)} chars): {valor[:80]!r}")
     return valor
 
 # Prompt base de Sofía — se usa cuando el CRM no tiene proyecto para este cliente
