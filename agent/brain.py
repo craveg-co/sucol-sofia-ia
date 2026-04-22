@@ -47,7 +47,7 @@ async def _obtener_prompt_global() -> str:
         return ""
 
     try:
-        url = f"{supabase_url}/rest/v1/sofia_config?key=eq.global_prompt&select=value&limit=1"
+        url = f"{supabase_url}/rest/v1/sofia_config?select=global_prompt&limit=1"
         headers = {
             "apikey": supabase_key,
             "Authorization": f"Bearer {supabase_key}",
@@ -56,7 +56,7 @@ async def _obtener_prompt_global() -> str:
             r = await http.get(url, headers=headers)
             r.raise_for_status()
             rows = r.json()
-            valor = rows[0]["value"].strip() if rows and rows[0].get("value") else ""
+            valor = rows[0]["global_prompt"].strip() if rows and rows[0].get("global_prompt") else ""
     except Exception as e:
         logger.warning(f"No se pudo leer prompt global de Supabase: {e}")
         valor = ""
