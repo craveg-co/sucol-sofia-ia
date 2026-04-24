@@ -3,6 +3,7 @@
 import os
 import ssl
 import logging
+from datetime import date, time
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy import text
 from dotenv import load_dotenv
@@ -234,6 +235,13 @@ async def crear_agendamiento(datos: dict) -> dict | None:
         return None
     # Eliminar video_url si la tabla no tiene esa columna
     datos_insert = {k: v for k, v in datos.items() if k != "video_url"}
+
+    # Convertir strings a tipos nativos que asyncpg requiere
+    if isinstance(datos_insert.get("fecha_visita"), str):
+        datos_insert["fecha_visita"] = date.fromisoformat(datos_insert["fecha_visita"])
+    if isinstance(datos_insert.get("hora_llamada"), str):
+        h, m = datos_insert["hora_llamada"].split(":")
+        datos_insert["hora_llamada"] = time(int(h), int(m))
     try:
         async with _crm_session() as session:
             cols = ", ".join(datos_insert.keys())
