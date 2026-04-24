@@ -113,7 +113,7 @@ class ProveedorMeta(ProveedorWhatsApp):
             nombre_cliente,
             telefono_cliente,
             resumen_conversacion,
-            video_url,
+            video_url if video_url else "No aplica",
         ]
         payload = {
             "messaging_product": "whatsapp",
