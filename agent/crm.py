@@ -233,8 +233,11 @@ async def crear_agendamiento(datos: dict) -> dict | None:
     """
     if not _crm_disponible():
         return None
-    # Excluir columnas problemáticas: video_url no existe, asesor_id apunta a profiles (no asesores)
-    datos_insert = {k: v for k, v in datos.items() if k not in ("video_url", "asesor_id")}
+    # Excluir columnas que no existen en la tabla
+    datos_insert = {k: v for k, v in datos.items() if k != "video_url"}
+    # Si asesor_id es None, excluirlo para no violar el FK
+    if datos_insert.get("asesor_id") is None:
+        datos_insert.pop("asesor_id", None)
 
     # fecha_visita requiere date nativo; hora_llamada es text en la tabla
     if isinstance(datos_insert.get("fecha_visita"), str):
@@ -298,7 +301,7 @@ async def obtener_asesor_por_nombre(nombre: str) -> dict | None:
     try:
         async with _crm_session() as session:
             result = await session.execute(
-                text("SELECT id, nombre, email, telefono FROM asesores WHERE activo = true")
+                text("SELECT id, user_id, nombre, email, telefono FROM asesores WHERE activo = true")
             )
             asesores = [dict(row) for row in result.mappings().all()]
 

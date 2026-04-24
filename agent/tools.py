@@ -185,13 +185,16 @@ async def confirmar_cita(
 
     # ── Obtener asesor desde la tabla asesores ────────────────────────────────
     asesor = await obtener_asesor_de_lead(telefono)
-    asesor_id = asesor.get("id") if asesor else None
+    # user_id es el FK que referencia profiles en agendamientos.asesor_id
+    asesor_id = asesor.get("user_id") if asesor else None
     asesor_nombre = asesor.get("nombre") if asesor else (lead.get("asesor_responsable") or "Asesor Sucol")
     asesor_telefono = asesor.get("telefono") if asesor else ""
 
     # ── Guardar en Supabase ───────────────────────────────────────────────────
     agendamiento = await crear_agendamiento({
         "lead_id": lead_id,
+        "nombre_cliente": nombre_cliente,
+        "telefono": telefono,
         "tipo_cita": tipo_cita,
         "fecha_visita": fecha_cita,
         "hora_llamada": hora_cita,
