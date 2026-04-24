@@ -187,6 +187,29 @@ async def _prompt_bienvenida_con_proyectos() -> str:
     return _PROMPT_BIENVENIDA.format(lista_proyectos=lista)
 
 
+_TOOL_ESCALAR_ASESOR = {
+    "name": "escalar_a_asesor",
+    "description": (
+        "Transfiere al cliente con su asesor asignado de forma inmediata cuando el cliente "
+        "quiere hablar con una persona ahora, tiene una consulta urgente, o prefiere no agendar "
+        "una cita y simplemente ser contactado por un asesor."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "nombre_cliente": {
+                "type": "string",
+                "description": "Nombre del cliente si se conoce, si no escribir 'Cliente'",
+            },
+            "motivo": {
+                "type": "string",
+                "description": "Resumen breve de por qué el cliente quiere hablar con un asesor",
+            },
+        },
+        "required": ["nombre_cliente", "motivo"],
+    },
+}
+
 _TOOL_CONFIRMAR_CITA = {
     "name": "confirmar_cita",
     "description": (
@@ -240,7 +263,7 @@ async def generar_respuesta_con_tools(
     el resultado antes de obtener el mensaje final para el cliente.
     Retorna solo el texto de respuesta para el cliente.
     """
-    from agent.tools import confirmar_cita  # import local para evitar ciclos en módulo
+    from agent.tools import confirmar_cita, escalar_a_asesor  # import local para evitar ciclos
 
     if not mensaje or len(mensaje.strip()) < 2:
         return _mensaje_fallback()
@@ -267,7 +290,7 @@ async def generar_respuesta_con_tools(
             max_tokens=1024,
             system=prompt_final,
             messages=mensajes,
-            tools=[_TOOL_CONFIRMAR_CITA],
+            tools=[_TOOL_CONFIRMAR_CITA, _TOOL_ESCALAR_ASESOR],
         )
 
         if response.stop_reason == "tool_use":
@@ -277,13 +300,16 @@ async def generar_respuesta_con_tools(
             for tu in tool_uses:
                 if tu.name == "confirmar_cita":
                     try:
-                        resultado_tool = await confirmar_cita(
-                            telefono=telefono,
-                            **tu.input,
-                        )
+                        resultado_tool = await confirmar_cita(telefono=telefono, **tu.input)
                     except Exception as e:
-                        logger.error(f"Error ejecutando confirmar_cita en tool_use: {e}")
+                        logger.error(f"Error ejecutando confirmar_cita: {e}")
                         resultado_tool = "Hubo un problema al agendar la cita. Por favor intenta de nuevo."
+                elif tu.name == "escalar_a_asesor":
+                    try:
+                        resultado_tool = await escalar_a_asesor(telefono=telefono, **tu.input)
+                    except Exception as e:
+                        logger.error(f"Error ejecutando escalar_a_asesor: {e}")
+                        resultado_tool = "Hubo un problema al contactar al asesor. Por favor intenta de nuevo."
                 else:
                     resultado_tool = f"Herramienta {tu.name} no reconocida."
 
@@ -303,7 +329,7 @@ async def generar_respuesta_con_tools(
                 max_tokens=1024,
                 system=prompt_final,
                 messages=mensajes_con_resultado,
-                tools=[_TOOL_CONFIRMAR_CITA],
+                tools=[_TOOL_CONFIRMAR_CITA, _TOOL_ESCALAR_ASESOR],
             )
             respuesta = response2.content[0].text
             logger.info(

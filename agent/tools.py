@@ -102,6 +102,55 @@ def iniciar_agendamiento(telefono: str, nombre: str) -> str:
     return f"Cita iniciada para {nombre}"
 
 
+async def escalar_a_asesor(
+    telefono: str,
+    nombre_cliente: str,
+    motivo: str,
+) -> str:
+    """
+    Transfiere al cliente con su asesor asignado de forma inmediata.
+    Envía un mensaje de texto directo al asesor con el número del cliente y el motivo.
+
+    Args:
+        telefono: Número del cliente
+        nombre_cliente: Nombre del cliente (si se conoce)
+        motivo: Resumen de por qué quiere hablar con un asesor
+
+    Returns:
+        Mensaje de confirmación para el cliente
+    """
+    lead = await obtener_lead(telefono)
+    asesor = await obtener_asesor_de_lead(telefono)
+
+    asesor_nombre = (asesor.get("nombre") if asesor else None) or (lead.get("asesor_responsable") if lead else None) or "Asesor Sucol"
+    asesor_telefono = asesor.get("telefono") if asesor else ""
+
+    if not asesor_telefono:
+        logger.warning(f"escalar_a_asesor: asesor sin teléfono para lead {telefono} — escalación omitida")
+        return f"Entendido, {nombre_cliente}. Un asesor de Sucol se pondrá en contacto contigo pronto al número {telefono}."
+
+    mensaje_asesor = (
+        f"*🔔 Cliente quiere hablar contigo ahora*\n\n"
+        f"*Cliente:* {nombre_cliente}\n"
+        f"*WhatsApp:* {telefono}\n"
+        f"*Motivo:* {motivo}\n\n"
+        f"_Sofía ya lo está atendiendo. Por favor contáctalo a la brevedad._"
+    )
+
+    try:
+        enviado = await _proveedor.enviar_mensaje(asesor_telefono, mensaje_asesor)
+    except Exception as e:
+        logger.error(f"escalar_a_asesor: error enviando mensaje a asesor {asesor_telefono}: {e}")
+        enviado = False
+
+    if enviado:
+        logger.info(f"Escalación enviada a {asesor_nombre} ({asesor_telefono}) para cliente {telefono}")
+        return f"Listo, {nombre_cliente}. Ya le avisé a tu asesor *{asesor_nombre}* y te contactará en breve al {telefono}. ¿Hay algo más en lo que te pueda ayudar mientras esperas?"
+
+    logger.warning(f"escalar_a_asesor: no se pudo notificar al asesor {asesor_telefono}")
+    return f"Entendido, {nombre_cliente}. Un asesor de Sucol se pondrá en contacto contigo pronto. ¿Hay algo más en lo que te pueda ayudar?"
+
+
 async def confirmar_cita(
     telefono: str,
     nombre_cliente: str,
