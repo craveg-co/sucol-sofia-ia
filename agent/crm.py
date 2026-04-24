@@ -236,12 +236,9 @@ async def crear_agendamiento(datos: dict) -> dict | None:
     # Eliminar video_url si la tabla no tiene esa columna
     datos_insert = {k: v for k, v in datos.items() if k != "video_url"}
 
-    # Convertir strings a tipos nativos que asyncpg requiere
+    # fecha_visita requiere date nativo; hora_llamada es text en la tabla
     if isinstance(datos_insert.get("fecha_visita"), str):
         datos_insert["fecha_visita"] = date.fromisoformat(datos_insert["fecha_visita"])
-    if isinstance(datos_insert.get("hora_llamada"), str):
-        h, m = datos_insert["hora_llamada"].split(":")
-        datos_insert["hora_llamada"] = time(int(h), int(m))
     try:
         async with _crm_session() as session:
             cols = ", ".join(datos_insert.keys())
