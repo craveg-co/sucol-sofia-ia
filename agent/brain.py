@@ -11,6 +11,7 @@ import time
 import yaml
 import logging
 import httpx
+from datetime import datetime, timezone, timedelta
 from anthropic import AsyncAnthropic
 from dotenv import load_dotenv
 
@@ -67,6 +68,11 @@ async def _obtener_prompt_global() -> str:
     logger.info(f"Prompt global cargado ({len(valor)} chars): {valor[:80]!r}")
     return valor
 
+
+def _obtener_prompt_global_resuelto() -> str:
+    """Retorna el prompt global con las variables de fecha resueltas en tiempo real."""
+    return _resolver_variables_prompt(_cache_global_prompt or "")
+
 # Prompt base de Sofía — se usa cuando el CRM no tiene proyecto para este cliente
 _PROMPT_BIENVENIDA = """Eres Sofía, la asesora virtual de Sucol Soluciones Urbanísticas.
 
@@ -122,6 +128,27 @@ def _mensaje_fallback() -> str:
         "fallback_message",
         "Disculpa, no entendí bien tu mensaje. ¿Puedes contarme en qué te puedo ayudar?",
     )
+
+
+def _fecha_colombia() -> str:
+    """Retorna la fecha y hora actual en Colombia (UTC-5) como string legible."""
+    colombia = timezone(timedelta(hours=-5))
+    ahora = datetime.now(colombia)
+    dias = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+    meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
+             "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+    return (
+        f"{dias[ahora.weekday()]} {ahora.day} de {meses[ahora.month - 1]} de {ahora.year}, "
+        f"{ahora.strftime('%I:%M %p')}"
+    )
+
+
+def _resolver_variables_prompt(prompt: str) -> str:
+    """Reemplaza variables de n8n ({{ $now... }}) por la fecha real de Colombia."""
+    import re
+    fecha = _fecha_colombia()
+    # Reemplazar cualquier expresión {{ ... }} con la fecha actual
+    return re.sub(r"\{\{[^}]+\}\}", fecha, prompt)
 
 
 def _construir_contexto_crm(lead: dict | None, lotes: list[dict]) -> str:
@@ -278,7 +305,8 @@ async def generar_respuesta_con_tools(
     else:
         prompt_final = await _prompt_bienvenida_con_proyectos()
 
-    global_prompt = await _obtener_prompt_global()
+    await _obtener_prompt_global()  # refresca caché si venció
+    global_prompt = _obtener_prompt_global_resuelto()
     if global_prompt:
         prompt_final = global_prompt + "\n\n---\n\n" + prompt_final
 
@@ -379,7 +407,8 @@ async def generar_respuesta(
         prompt_final = await _prompt_bienvenida_con_proyectos()
 
     # Inyectar prompt global del admin (si existe) al inicio
-    global_prompt = await _obtener_prompt_global()
+    await _obtener_prompt_global()  # refresca caché si venció
+    global_prompt = _obtener_prompt_global_resuelto()
     if global_prompt:
         prompt_final = global_prompt + "\n\n---\n\n" + prompt_final
 
