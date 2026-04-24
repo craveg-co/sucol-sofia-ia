@@ -232,19 +232,19 @@ async def crear_agendamiento(datos: dict) -> dict | None:
     """
     if not _crm_disponible():
         return None
+    # Eliminar video_url si la tabla no tiene esa columna
+    datos_insert = {k: v for k, v in datos.items() if k != "video_url"}
     try:
         async with _crm_session() as session:
+            cols = ", ".join(datos_insert.keys())
+            vals = ", ".join(f":{k}" for k in datos_insert.keys())
             result = await session.execute(
-                text("""
-                    INSERT INTO agendamientos
-                        (lead_id, tipo_cita, fecha_visita, hora_llamada,
-                         resumen_conversacion, estado, asesor_id, asesor_asignado, video_url)
-                    VALUES
-                        (:lead_id, :tipo_cita, :fecha_visita, :hora_llamada,
-                         :resumen_conversacion, :estado, :asesor_id, :asesor_asignado, :video_url)
+                text(f"""
+                    INSERT INTO agendamientos ({cols})
+                    VALUES ({vals})
                     RETURNING *
                 """),
-                datos,
+                datos_insert,
             )
             await session.commit()
             row = result.mappings().first()
@@ -280,27 +280,29 @@ async def obtener_lotes_disponibles(proyecto_slug: str) -> list[dict]:
 # ── Asesores ───────────────────────────────────────────────────────────────────
 
 async def obtener_asesor_por_nombre(nombre: str) -> dict | None:
-    """Busca un asesor activo por nombre (búsqueda parcial, case-insensitive)."""
+    """
+    Busca un asesor activo por nombre con matching flexible:
+    verifica que todas las palabras del nombre del asesor aparezcan en el input.
+    Ej: "Fabio Cardona" coincide con "Fabio Alonso Cardona".
+    """
     if not _crm_disponible():
         return None
     try:
         async with _crm_session() as session:
             result = await session.execute(
-                text("""
-                    SELECT id, nombre, email, telefono
-                    FROM asesores
-                    WHERE activo = true
-                    AND lower(nombre) LIKE lower(:nombre)
-                    LIMIT 1
-                """),
-                {"nombre": f"%{nombre}%"},
+                text("SELECT id, nombre, email, telefono FROM asesores WHERE activo = true")
             )
-            row = result.mappings().first()
-            if row:
-                logger.info(f"CRM asesor encontrado: {row['nombre']} ({row['telefono']})")
-                return dict(row)
-            logger.info(f"CRM asesor no encontrado para nombre='{nombre}'")
-            return None
+            asesores = [dict(row) for row in result.mappings().all()]
+
+        nombre_lower = nombre.lower()
+        for asesor in asesores:
+            palabras = asesor["nombre"].lower().split()
+            if all(p in nombre_lower for p in palabras):
+                logger.info(f"CRM asesor encontrado: {asesor['nombre']} ({asesor['telefono']})")
+                return asesor
+
+        logger.info(f"CRM asesor no encontrado para nombre='{nombre}'")
+        return None
     except Exception as e:
         logger.error(f"CRM obtener_asesor_por_nombre: {e}")
         return None
