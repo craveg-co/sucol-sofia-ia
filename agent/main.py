@@ -25,6 +25,8 @@ from agent.crm import (
     detectar_proyecto_en_mensaje,
     obtener_lead,
     obtener_lotes_disponibles,
+    obtener_agendamientos_lead,
+    obtener_asesor_de_lead,
     crear_o_actualizar_contacto_whatsapp,
 )
 
@@ -137,10 +139,12 @@ async def webhook_handler(request: Request):
 
             logger.info(f"Mensaje de {msg.telefono}: {msg.texto}")
 
-            # ── Paso 1 y 2 en paralelo: historial + lead (no dependen del proyecto)
-            historial, lead = await _gather(
+            # ── Paso 1, 2, 3 en paralelo: historial + lead + asesor + agendamientos
+            historial, lead, asesor, agendamientos = await _gather(
                 obtener_historial(msg.telefono),
                 obtener_lead(msg.telefono),
+                obtener_asesor_de_lead(msg.telefono),
+                obtener_agendamientos_lead(msg.telefono),
             )
 
             # ── Paso 3: detectar proyecto (contactos_whatsapp → leads → mensaje)
@@ -169,6 +173,8 @@ async def webhook_handler(request: Request):
                     contexto_lead=lead,
                     lotes_disponibles=lotes,
                     telefono=msg.telefono,
+                    asesor=asesor,
+                    agendamientos=agendamientos,
                 )
             except Exception as e:
                 logger.error(f"Error generando respuesta para {msg.telefono}: {e}")
@@ -206,10 +212,11 @@ async def _gather(*coros):
             limpios.append(None if not isinstance(r, list) else [])
         else:
             limpios.append(r)
-    # Corregir: historial debe ser lista, lead puede ser None
-    if len(limpios) == 2:
-        if limpios[0] is None:
-            limpios[0] = []
+    # historial debe ser lista; lead, asesor, agendamientos pueden ser None/[]
+    if limpios[0] is None:
+        limpios[0] = []
+    if len(limpios) > 3 and limpios[3] is None:
+        limpios[3] = []
     return limpios
 
 

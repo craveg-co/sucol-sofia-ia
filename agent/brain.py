@@ -151,7 +151,12 @@ def _resolver_variables_prompt(prompt: str) -> str:
     return re.sub(r"\{\{[^}]+\}\}", fecha, prompt)
 
 
-def _construir_contexto_crm(lead: dict | None, lotes: list[dict]) -> str:
+def _construir_contexto_crm(
+    lead: dict | None,
+    lotes: list[dict],
+    asesor: dict | None = None,
+    agendamientos: list[dict] | None = None,
+) -> str:
     """Construye el bloque de contexto CRM completo para inyectar al system prompt."""
     partes = []
 
@@ -176,10 +181,21 @@ def _construir_contexto_crm(lead: dict | None, lotes: list[dict]) -> str:
             if valor:
                 partes.append(f"- {etiqueta}: {valor}")
         if lead.get("asesor_responsable"):
-            partes.append(
-                f"\nSi el cliente necesita hablar con alguien, "
-                f"su asesor asignado es {lead['asesor_responsable']}."
-            )
+            linea_asesor = f"\nEl asesor asignado es {lead['asesor_responsable']}"
+            if asesor and asesor.get("telefono"):
+                linea_asesor += f" — teléfono: {asesor['telefono']}"
+            linea_asesor += "."
+            partes.append(linea_asesor)
+
+    if agendamientos:
+        partes.append("\n## Citas agendadas del cliente")
+        for cita in agendamientos:
+            fecha = cita.get("fecha_visita", "")
+            hora = cita.get("hora_llamada", "")
+            tipo = cita.get("tipo_cita", "")
+            estado = cita.get("estado", "")
+            asesor_cita = cita.get("asesor_asignado", "")
+            partes.append(f"- {tipo} el {fecha} a las {hora} con {asesor_cita} — Estado: {estado}")
 
     if lotes:
         partes.append("\n## Lotes disponibles en este proyecto")
@@ -288,6 +304,8 @@ async def generar_respuesta_con_tools(
     contexto_lead: dict | None = None,
     lotes_disponibles: list[dict] | None = None,
     telefono: str = "",
+    asesor: dict | None = None,
+    agendamientos: list[dict] | None = None,
 ) -> str:
     """
     Como generar_respuesta() pero con soporte de tool_use.
@@ -310,7 +328,7 @@ async def generar_respuesta_con_tools(
     if global_prompt:
         prompt_final = global_prompt + "\n\n---\n\n" + prompt_final
 
-    contexto_crm = _construir_contexto_crm(contexto_lead, lotes_disponibles or [])
+    contexto_crm = _construir_contexto_crm(contexto_lead, lotes_disponibles or [], asesor, agendamientos or [])
     if contexto_crm:
         prompt_final += "\n\n" + contexto_crm
 
@@ -387,6 +405,8 @@ async def generar_respuesta(
     sistema_prompt: str | None = None,
     contexto_lead: dict | None = None,
     lotes_disponibles: list[dict] | None = None,
+    asesor: dict | None = None,
+    agendamientos: list[dict] | None = None,
 ) -> str:
     """
     Genera una respuesta usando Claude API (claude-sonnet-4-6).
@@ -413,7 +433,7 @@ async def generar_respuesta(
         prompt_final = global_prompt + "\n\n---\n\n" + prompt_final
 
     # Inyectar contexto CRM completo (lead + lotes)
-    contexto_crm = _construir_contexto_crm(contexto_lead, lotes_disponibles or [])
+    contexto_crm = _construir_contexto_crm(contexto_lead, lotes_disponibles or [], asesor, agendamientos or [])
     if contexto_crm:
         prompt_final += "\n\n" + contexto_crm
 

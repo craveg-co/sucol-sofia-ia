@@ -265,6 +265,32 @@ async def crear_agendamiento(datos: dict) -> dict | None:
         return None
 
 
+async def obtener_agendamientos_lead(telefono: str) -> list[dict]:
+    """Retorna las últimas 5 citas agendadas para el lead de este teléfono."""
+    lead = await obtener_lead(telefono)
+    if not lead:
+        return []
+    lead_id = lead.get("id")
+    if not lead_id:
+        return []
+    try:
+        async with _crm_session() as session:
+            result = await session.execute(
+                text("""
+                    SELECT id, tipo_cita, fecha_visita, hora_llamada, estado, asesor_asignado
+                    FROM agendamientos
+                    WHERE lead_id = :lead_id
+                    ORDER BY fecha_visita DESC, hora_llamada DESC
+                    LIMIT 5
+                """),
+                {"lead_id": lead_id},
+            )
+            return [dict(row) for row in result.mappings().all()]
+    except Exception as e:
+        logger.error(f"CRM obtener_agendamientos_lead: {e}")
+        return []
+
+
 async def obtener_lotes_disponibles(proyecto_slug: str) -> list[dict]:
     """Retorna lotes con estado='disponible' de un proyecto."""
     if not _crm_disponible():
