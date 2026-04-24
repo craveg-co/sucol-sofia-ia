@@ -239,6 +239,9 @@ async def crear_agendamiento(datos: dict) -> dict | None:
     # fecha_visita requiere date nativo; hora_llamada es text en la tabla
     if isinstance(datos_insert.get("fecha_visita"), str):
         datos_insert["fecha_visita"] = date.fromisoformat(datos_insert["fecha_visita"])
+    if not isinstance(datos_insert.get("hora_llamada"), str):
+        t = datos_insert["hora_llamada"]
+        datos_insert["hora_llamada"] = t.strftime("%H:%M") if hasattr(t, "strftime") else str(t)
     try:
         async with _crm_session() as session:
             cols = ", ".join(datos_insert.keys())
