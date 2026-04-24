@@ -18,7 +18,8 @@
       "Write",
       "Edit",
       "Glob",
-      "Grep"
+      "Grep",
+      "Bash(curl -s -X POST https://n8n.onzecloud.co/webhook/46a0b0ca-267c-45c9-8d1b-be77203f0641 -H 'Content-Type: application/json' -d '{ *)"
     ]
   }
 }
