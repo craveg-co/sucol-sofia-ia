@@ -233,8 +233,8 @@ async def crear_agendamiento(datos: dict) -> dict | None:
     """
     if not _crm_disponible():
         return None
-    # Eliminar video_url si la tabla no tiene esa columna
-    datos_insert = {k: v for k, v in datos.items() if k != "video_url"}
+    # Excluir columnas problemáticas: video_url no existe, asesor_id apunta a profiles (no asesores)
+    datos_insert = {k: v for k, v in datos.items() if k not in ("video_url", "asesor_id")}
 
     # fecha_visita requiere date nativo; hora_llamada es text en la tabla
     if isinstance(datos_insert.get("fecha_visita"), str):
