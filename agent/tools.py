@@ -9,14 +9,17 @@ Cubren los 3 casos de uso: FAQ, agendamiento de citas y calificación de leads.
 import os
 import yaml
 import logging
+import httpx
 from datetime import datetime
 
 from agent.crm import crear_agendamiento, obtener_lead, obtener_asesor_de_lead, actualizar_lead_crm
-from agent.providers import obtener_proveedor
 
 logger = logging.getLogger("agentkit")
 
-_proveedor = obtener_proveedor()
+_N8N_WEBHOOK_CITA = os.getenv(
+    "N8N_WEBHOOK_CITA",
+    "https://n8n.onzecloud.co/webhook/46a0b0ca-267c-45c9-8d1b-be77203f0641",
+)
 
 
 def cargar_info_negocio() -> dict:
@@ -218,36 +221,29 @@ async def confirmar_cita(
     except Exception as e:
         logger.warning(f"confirmar_cita: no se pudo actualizar etapa del lead {telefono}: {e}")
 
-    # ── Notificar al asesor (plantilla Meta) ──────────────────────────────────
-    if not asesor_telefono:
-        logger.warning(f"confirmar_cita: asesor sin teléfono (lead={lead_id}) — notificación omitida")
-        return f"Cita agendada para el {fecha_cita} a las {hora_cita}. Un asesor se pondrá en contacto contigo."
-
+    # ── Notificar al asesor vía n8n webhook ───────────────────────────────────
     try:
-        if not hasattr(_proveedor, "enviar_plantilla_cita_asesor"):
-            logger.warning("confirmar_cita: el proveedor actual no soporta plantillas — notificación omitida")
-            return f"Cita agendada para el {fecha_cita} a las {hora_cita}. Un asesor se pondrá en contacto contigo."
-
-        enviado = await _proveedor.enviar_plantilla_cita_asesor(
-            telefono_asesor=asesor_telefono,
-            asesor_nombre=asesor_nombre,
-            tipo_cita=tipo_cita,
-            fecha_cita=fecha_cita,
-            hora_cita=hora_cita,
-            nombre_cliente=nombre_cliente,
-            telefono_cliente=telefono,
-            resumen_conversacion=resumen,
-            video_url=video_url or "",
-        )
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.post(_N8N_WEBHOOK_CITA, json={
+                "asesor_nombre": asesor_nombre,
+                "asesor_telefono": asesor_telefono,
+                "tipo_cita": tipo_cita,
+                "fecha_cita": str(fecha_cita),
+                "hora_cita": hora_cita,
+                "nombre_cliente": nombre_cliente,
+                "telefono_cliente": telefono,
+                "resumen_conversacion": resumen,
+                "video_url": video_url or "",
+                "agendamiento_id": agendamiento.get("id"),
+            })
+            if r.status_code < 300:
+                logger.info(f"Notificación enviada a n8n para {asesor_nombre} ({asesor_telefono})")
+                return f"Cita agendada para el {fecha_cita} a las {hora_cita}. Tu asesor fue notificado."
+            else:
+                logger.warning(f"n8n webhook respondió {r.status_code}: {r.text[:120]}")
     except Exception as e:
-        logger.error(f"confirmar_cita: error enviando plantilla al asesor {asesor_telefono}: {e}")
-        enviado = False
+        logger.error(f"confirmar_cita: error llamando webhook n8n: {e}")
 
-    if enviado:
-        logger.info(f"Notificación enviada a {asesor_nombre} ({asesor_telefono})")
-        return f"Cita agendada para el {fecha_cita} a las {hora_cita}. Tu asesor fue notificado."
-
-    logger.warning(f"confirmar_cita: plantilla no enviada a {asesor_telefono}")
     return f"Cita agendada para el {fecha_cita} a las {hora_cita}. Un asesor se pondrá en contacto contigo."
 
 
