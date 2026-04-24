@@ -106,6 +106,9 @@ class ProveedorMeta(ProveedorWhatsApp):
             logger.warning("META_ACCESS_TOKEN o META_NOTIFY_PHONE_NUMBER_ID no configurados — plantilla no enviada")
             return False
 
+        # Meta API requiere el número sin '+' ni espacios
+        telefono_asesor = telefono_asesor.replace("+", "").replace(" ", "").replace("-", "")
+
         url = f"https://graph.facebook.com/{self.api_version}/{self.notify_phone_number_id}/messages"
         headers = {
             "Authorization": f"Bearer {self.access_token}",
