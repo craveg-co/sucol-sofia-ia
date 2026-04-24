@@ -11,7 +11,7 @@ import yaml
 import logging
 from datetime import datetime
 
-from agent.crm import crear_agendamiento, obtener_lead, obtener_asesor_de_lead
+from agent.crm import crear_agendamiento, obtener_lead, obtener_asesor_de_lead, actualizar_lead_crm
 from agent.providers import obtener_proveedor
 
 logger = logging.getLogger("agentkit")
@@ -207,6 +207,13 @@ async def confirmar_cita(
         return "Hubo un problema al agendar la cita. Por favor intenta de nuevo."
 
     logger.info(f"Cita creada id={agendamiento.get('id')} lead={lead_id} {fecha_cita} {hora_cita}")
+
+    # Avanzar el lead a la etapa VISITA AGENDADA en el CRM
+    try:
+        await actualizar_lead_crm(telefono, {"etapa_lead": "VISITA AGENDADA"})
+        logger.info(f"Lead {telefono} avanzado a etapa VISITA AGENDADA")
+    except Exception as e:
+        logger.warning(f"confirmar_cita: no se pudo actualizar etapa del lead {telefono}: {e}")
 
     # ── Notificar al asesor (plantilla Meta) ──────────────────────────────────
     if not asesor_telefono:
