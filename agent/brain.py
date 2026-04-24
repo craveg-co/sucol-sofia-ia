@@ -131,13 +131,18 @@ def _construir_contexto_crm(lead: dict | None, lotes: list[dict]) -> str:
     if lead:
         partes.append("## Información del cliente en el CRM")
         campos = {
-            "nombre_completo": "Nombre",
+            "nombre_completo": "Nombre del cliente",
             "etapa_lead": "Etapa en el CRM",
+            "pipeline": "Pipeline",
             "asesor_responsable": "Asesor asignado",
             "proyecto": "Proyecto de interés",
-            "fuente": "Fuente del lead",
+            "canal": "Canal de origen",
             "presupuesto": "Presupuesto declarado",
-            "notas": "Notas previas",
+            "area_buscada": "Área buscada",
+            "proposito_compra": "Propósito de compra",
+            "temperatura": "Temperatura del lead",
+            "resumen_conversacion": "Resumen previo de conversación",
+            "estado_cita": "Estado de cita",
         }
         for campo, etiqueta in campos.items():
             valor = lead.get(campo)
