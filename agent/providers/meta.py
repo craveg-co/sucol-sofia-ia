@@ -16,6 +16,7 @@ class ProveedorMeta(ProveedorWhatsApp):
     def __init__(self):
         self.access_token = os.getenv("META_ACCESS_TOKEN")
         self.phone_number_id = os.getenv("META_PHONE_NUMBER_ID")
+        self.notify_phone_number_id = os.getenv("META_NOTIFY_PHONE_NUMBER_ID", self.phone_number_id)
         self.verify_token = os.getenv("META_VERIFY_TOKEN", "sucol-sofia")
         self.api_version = "v21.0"
 
@@ -94,13 +95,18 @@ class ProveedorMeta(ProveedorWhatsApp):
         nombre_cliente: str,
         telefono_cliente: str,
         resumen_conversacion: str,
-        video_url: str,
+        video_url: str = "",
     ) -> bool:
-        """Envía la plantilla sucol_cita_virtual_asesor al asesor asignado."""
-        if not self.access_token or not self.phone_number_id:
-            logger.warning("META_ACCESS_TOKEN o META_PHONE_NUMBER_ID no configurados — plantilla no enviada")
+        """
+        Envía la plantilla sucol_nueva_cita_asesor al asesor desde el número de notificaciones.
+        7 parámetros fijos — sin video_url para evitar errores por campo vacío.
+        Si hay video_url, se envía como mensaje de texto adicional.
+        """
+        if not self.access_token or not self.notify_phone_number_id:
+            logger.warning("META_ACCESS_TOKEN o META_NOTIFY_PHONE_NUMBER_ID no configurados — plantilla no enviada")
             return False
-        url = f"https://graph.facebook.com/{self.api_version}/{self.phone_number_id}/messages"
+
+        url = f"https://graph.facebook.com/{self.api_version}/{self.notify_phone_number_id}/messages"
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json",
@@ -113,14 +119,13 @@ class ProveedorMeta(ProveedorWhatsApp):
             nombre_cliente,
             telefono_cliente,
             resumen_conversacion,
-            video_url if video_url else "No aplica",
         ]
         payload = {
             "messaging_product": "whatsapp",
             "to": telefono_asesor,
             "type": "template",
             "template": {
-                "name": "sucol_cita_virtual_asesor",
+                "name": "sucol_nueva_cita_asesor",
                 "language": {"code": "es_CO"},
                 "components": [
                     {
@@ -136,4 +141,15 @@ class ProveedorMeta(ProveedorWhatsApp):
             r = await client.post(url, json=payload, headers=headers)
             if r.status_code != 200:
                 logger.error(f"Error plantilla Meta API: {r.status_code} — {r.text}")
-            return r.status_code == 200
+                return False
+
+            # Si hay link de videollamada, enviarlo como mensaje de texto adicional
+            if video_url:
+                await client.post(url, headers=headers, json={
+                    "messaging_product": "whatsapp",
+                    "to": telefono_asesor,
+                    "type": "text",
+                    "text": {"body": f"🔗 Enlace de videollamada: {video_url}"},
+                })
+
+            return True
