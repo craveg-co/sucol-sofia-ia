@@ -12,7 +12,7 @@ import logging
 import httpx
 from datetime import datetime
 
-from agent.crm import crear_agendamiento, obtener_lead, obtener_asesor_de_lead, actualizar_lead_crm
+from agent.crm import crear_agendamiento, crear_lead, obtener_lead, obtener_asesor_de_lead, actualizar_lead_crm
 
 logger = logging.getLogger("agentkit")
 
@@ -178,11 +178,24 @@ async def confirmar_cita(
     Returns:
         Mensaje de confirmación para transmitir al cliente
     """
-    # ── Obtener lead y asesor ─────────────────────────────────────────────────
+    # ── Obtener o crear lead ──────────────────────────────────────────────────
     lead = await obtener_lead(telefono)
+
+    if not lead:
+        logger.info(f"confirmar_cita: lead no existe para {telefono} — creando con etapa 'calificado'")
+        lead = await crear_lead({
+            "nombre_completo": nombre_cliente,
+            "telefono_principal": telefono,
+        })
+        if lead:
+            logger.info(f"Lead creado id={lead.get('id')} asesor asignado={lead.get('asesor_responsable')}")
+        else:
+            logger.error(f"confirmar_cita: no se pudo crear lead para {telefono}")
+
     lead_id = lead.get("id") if lead else None
 
-    asesor = await obtener_asesor_de_lead(telefono)
+    # ── Obtener asesor (puede venir del trigger en el lead recién creado) ─────
+    asesor = await obtener_asesor_de_lead(telefono) if lead else None
     asesor_id = asesor.get("user_id") if asesor else None
     asesor_nombre = (
         (asesor.get("nombre") if asesor else None)
@@ -191,7 +204,7 @@ async def confirmar_cita(
     )
     asesor_telefono = asesor.get("telefono") if asesor else ""
 
-    # ── Guardar en Supabase (solo si hay lead) ────────────────────────────────
+    # ── Guardar agendamiento en Supabase ──────────────────────────────────────
     agendamiento = None
     if lead_id:
         agendamiento = await crear_agendamiento({

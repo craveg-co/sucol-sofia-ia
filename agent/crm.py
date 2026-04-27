@@ -265,6 +265,40 @@ async def crear_agendamiento(datos: dict) -> dict | None:
         return None
 
 
+async def crear_lead(datos: dict) -> dict | None:
+    """
+    Inserta un nuevo lead en la tabla leads con etapa_lead='calificado'.
+    El trigger trigger_asignar_asesor_calificado asigna el asesor automáticamente.
+    Retorna el row completo (con asesor ya asignado) o None si falla.
+    """
+    if not _crm_disponible():
+        return None
+    campos_base = {
+        "etapa_lead": "calificado",
+        "canal": "WhatsApp Sofia",
+        "origen_creacion": "sofia",
+    }
+    datos_insert = {**campos_base, **datos}
+    cols = ", ".join(datos_insert.keys())
+    vals = ", ".join(f":{k}" for k in datos_insert.keys())
+    try:
+        async with _crm_session() as session:
+            result = await session.execute(
+                text(f"""
+                    INSERT INTO leads ({cols})
+                    VALUES ({vals})
+                    RETURNING *
+                """),
+                datos_insert,
+            )
+            await session.commit()
+            row = result.mappings().first()
+            return dict(row) if row else None
+    except Exception as e:
+        logger.error(f"CRM crear_lead: {e}")
+        return None
+
+
 async def obtener_agendamientos_lead(telefono: str) -> list[dict]:
     """Retorna las últimas 5 citas agendadas para el lead de este teléfono."""
     lead = await obtener_lead(telefono)
