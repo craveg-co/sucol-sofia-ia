@@ -12,7 +12,11 @@ import logging
 import httpx
 from datetime import datetime
 
-from agent.crm import crear_agendamiento, crear_lead, obtener_lead, obtener_asesor_de_lead, actualizar_lead_crm
+from agent.crm import (
+    crear_agendamiento, crear_lead, crear_o_actualizar_sofia_lead,
+    obtener_lead, obtener_asesor_de_lead, obtener_asesor_por_user_id,
+    actualizar_lead_crm,
+)
 
 logger = logging.getLogger("agentkit")
 
@@ -178,24 +182,36 @@ async def confirmar_cita(
     Returns:
         Mensaje de confirmación para transmitir al cliente
     """
-    # ── Obtener o crear lead ──────────────────────────────────────────────────
+    # ── Obtener o crear lead en tabla leads ───────────────────────────────────
     lead = await obtener_lead(telefono)
-
     if not lead:
-        logger.info(f"confirmar_cita: lead no existe para {telefono} — creando con etapa 'calificado'")
+        logger.info(f"confirmar_cita: creando lead para {telefono}")
         lead = await crear_lead({
             "nombre_completo": nombre_cliente,
             "telefono_principal": telefono,
         })
         if lead:
-            logger.info(f"Lead creado id={lead.get('id')} asesor asignado={lead.get('asesor_responsable')}")
+            logger.info(f"Lead creado id={lead.get('id')}")
         else:
             logger.error(f"confirmar_cita: no se pudo crear lead para {telefono}")
 
     lead_id = lead.get("id") if lead else None
 
-    # ── Obtener asesor (puede venir del trigger en el lead recién creado) ─────
-    asesor = await obtener_asesor_de_lead(telefono) if lead else None
+    # ── Registrar en sofia_leads con etapa 'calificado' (trigger asigna asesor)
+    sofia_lead = None
+    if lead_id:
+        proyecto_id = lead.get("proyecto_id") if lead else None
+        sofia_lead = await crear_o_actualizar_sofia_lead(str(lead_id), proyecto_id, "calificado")
+        if sofia_lead:
+            logger.info(f"sofia_lead actualizado etapa=calificado asesor_asignado_id={sofia_lead.get('asesor_asignado_id')}")
+
+    # ── Obtener asesor: primero desde sofia_leads (trigger), luego fallback leads
+    asesor = None
+    if sofia_lead and sofia_lead.get("asesor_asignado_id"):
+        asesor = await obtener_asesor_por_user_id(str(sofia_lead["asesor_asignado_id"]))
+    if not asesor:
+        asesor = await obtener_asesor_de_lead(telefono)
+
     asesor_id = asesor.get("user_id") if asesor else None
     asesor_nombre = (
         (asesor.get("nombre") if asesor else None)

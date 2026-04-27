@@ -299,6 +299,50 @@ async def crear_lead(datos: dict) -> dict | None:
         return None
 
 
+async def crear_o_actualizar_sofia_lead(lead_id: str, proyecto_id: str | None, etapa: str) -> dict | None:
+    """
+    Inserta o actualiza el registro en sofia_leads.
+    Al insertar con etapa='calificado', el trigger asigna el asesor automáticamente.
+    """
+    if not _crm_disponible():
+        return None
+    try:
+        async with _crm_session() as session:
+            result = await session.execute(
+                text("""
+                    INSERT INTO sofia_leads (lead_id, proyecto_id, etapa)
+                    VALUES (:lead_id, :proyecto_id, :etapa)
+                    ON CONFLICT (lead_id)
+                    DO UPDATE SET etapa = EXCLUDED.etapa, updated_at = now()
+                    RETURNING *
+                """),
+                {"lead_id": lead_id, "proyecto_id": proyecto_id, "etapa": etapa},
+            )
+            await session.commit()
+            row = result.mappings().first()
+            return dict(row) if row else None
+    except Exception as e:
+        logger.error(f"CRM crear_o_actualizar_sofia_lead: {e}")
+        return None
+
+
+async def obtener_asesor_por_user_id(user_id: str) -> dict | None:
+    """Busca un asesor activo por su user_id (FK a profiles, usado en sofia_leads.asesor_asignado_id)."""
+    if not _crm_disponible():
+        return None
+    try:
+        async with _crm_session() as session:
+            result = await session.execute(
+                text("SELECT id, user_id, nombre, email, telefono FROM asesores WHERE user_id = :uid AND activo = true LIMIT 1"),
+                {"uid": user_id},
+            )
+            row = result.mappings().first()
+            return dict(row) if row else None
+    except Exception as e:
+        logger.error(f"CRM obtener_asesor_por_user_id: {e}")
+        return None
+
+
 async def obtener_agendamientos_lead(telefono: str) -> list[dict]:
     """Retorna las últimas 5 citas agendadas para el lead de este teléfono."""
     lead = await obtener_lead(telefono)
