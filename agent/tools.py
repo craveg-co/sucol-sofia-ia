@@ -178,48 +178,46 @@ async def confirmar_cita(
     Returns:
         Mensaje de confirmación para transmitir al cliente
     """
-    # ── Obtener lead (necesitamos lead_id para el INSERT) ─────────────────────
+    # ── Obtener lead y asesor ─────────────────────────────────────────────────
     lead = await obtener_lead(telefono)
-    if not lead:
-        logger.warning(f"confirmar_cita: lead no encontrado para {telefono}")
-        return "Hubo un problema al agendar la cita. Por favor intenta de nuevo."
+    lead_id = lead.get("id") if lead else None
 
-    lead_id = lead.get("id")
-
-    # ── Obtener asesor desde la tabla asesores ────────────────────────────────
     asesor = await obtener_asesor_de_lead(telefono)
-    # user_id es el FK que referencia profiles en agendamientos.asesor_id
     asesor_id = asesor.get("user_id") if asesor else None
-    asesor_nombre = asesor.get("nombre") if asesor else (lead.get("asesor_responsable") or "Asesor Sucol")
+    asesor_nombre = (
+        (asesor.get("nombre") if asesor else None)
+        or (lead.get("asesor_responsable") if lead else None)
+        or "Asesor Sucol"
+    )
     asesor_telefono = asesor.get("telefono") if asesor else ""
 
-    # ── Guardar en Supabase ───────────────────────────────────────────────────
-    agendamiento = await crear_agendamiento({
-        "lead_id": lead_id,
-        "nombre_cliente": nombre_cliente,
-        "telefono": telefono,
-        "tipo_cita": tipo_cita,
-        "fecha_visita": fecha_cita,
-        "hora_llamada": hora_cita,
-        "resumen_conversacion": resumen,
-        "estado": "PENDIENTE",
-        "asesor_id": asesor_id,
-        "asesor_asignado": asesor_nombre,
-        "video_url": video_url or "",
-    })
-
-    if not agendamiento:
-        logger.error(f"confirmar_cita: INSERT fallido para lead {lead_id} ({telefono})")
-        return "Hubo un problema al agendar la cita. Por favor intenta de nuevo."
-
-    logger.info(f"Cita creada id={agendamiento.get('id')} lead={lead_id} {fecha_cita} {hora_cita}")
-
-    # Avanzar el lead a la etapa VISITA AGENDADA en el CRM
-    try:
-        await actualizar_lead_crm(telefono, {"etapa_lead": "VISITA AGENDADA"})
-        logger.info(f"Lead {telefono} avanzado a etapa VISITA AGENDADA")
-    except Exception as e:
-        logger.warning(f"confirmar_cita: no se pudo actualizar etapa del lead {telefono}: {e}")
+    # ── Guardar en Supabase (solo si hay lead) ────────────────────────────────
+    agendamiento = None
+    if lead_id:
+        agendamiento = await crear_agendamiento({
+            "lead_id": lead_id,
+            "nombre_cliente": nombre_cliente,
+            "telefono": telefono,
+            "tipo_cita": tipo_cita,
+            "fecha_visita": fecha_cita,
+            "hora_llamada": hora_cita,
+            "resumen_conversacion": resumen,
+            "estado": "PENDIENTE",
+            "asesor_id": asesor_id,
+            "asesor_asignado": asesor_nombre,
+            "video_url": video_url or "",
+        })
+        if agendamiento:
+            logger.info(f"Cita creada id={agendamiento.get('id')} lead={lead_id} {fecha_cita} {hora_cita}")
+            try:
+                await actualizar_lead_crm(telefono, {"etapa_lead": "VISITA AGENDADA"})
+                logger.info(f"Lead {telefono} avanzado a etapa VISITA AGENDADA")
+            except Exception as e:
+                logger.warning(f"confirmar_cita: no se pudo actualizar etapa del lead: {e}")
+        else:
+            logger.error(f"confirmar_cita: INSERT fallido para lead {lead_id} ({telefono})")
+    else:
+        logger.warning(f"confirmar_cita: lead no encontrado para {telefono} — se notifica a n8n sin guardar en DB")
 
     # ── Notificar al asesor vía n8n webhook ───────────────────────────────────
     try:
