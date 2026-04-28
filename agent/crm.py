@@ -426,13 +426,40 @@ async def obtener_asesor_por_nombre(nombre: str) -> dict | None:
 async def obtener_asesor_de_lead(telefono_cliente: str) -> dict | None:
     """
     Retorna el asesor asignado al lead del cliente dado.
-    Flujo: lead(telefono) → asesor_responsable → asesores(nombre) → dict asesor.
+    Prioridad:
+    1. sofia_leads.asesor_asignado_id → asesores.user_id  (FK directo, más confiable)
+    2. leads.asesor_responsable → matching de nombre      (fallback por texto)
     """
     lead = await obtener_lead(telefono_cliente)
     if not lead:
         logger.info(f"CRM obtener_asesor_de_lead: lead no encontrado para {telefono_cliente}")
         return None
 
+    lead_id = lead.get("id")
+
+    # 1. FK directo via sofia_leads
+    if lead_id and _crm_disponible():
+        try:
+            async with _crm_session() as session:
+                result = await session.execute(
+                    text("""
+                        SELECT asesor_asignado_id
+                        FROM sofia_leads
+                        WHERE lead_id = :lead_id
+                        LIMIT 1
+                    """),
+                    {"lead_id": str(lead_id)},
+                )
+                row = result.mappings().first()
+                if row and row.get("asesor_asignado_id"):
+                    asesor = await obtener_asesor_por_user_id(str(row["asesor_asignado_id"]))
+                    if asesor:
+                        logger.info(f"CRM asesor encontrado via sofia_leads FK: {asesor['nombre']}")
+                        return asesor
+        except Exception as e:
+            logger.warning(f"CRM obtener_asesor_de_lead via sofia_leads: {e}")
+
+    # 2. Fallback: matching de nombre en leads.asesor_responsable
     nombre_asesor: str = lead.get("asesor_responsable") or ""
     if not nombre_asesor:
         logger.info(f"CRM obtener_asesor_de_lead: lead {telefono_cliente} sin asesor_responsable")
