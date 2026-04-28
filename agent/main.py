@@ -204,19 +204,21 @@ async def webhook_handler(request: Request):
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 async def _gather(*coros):
-    """Ejecuta coroutines en paralelo y convierte excepciones en valores vacíos."""
+    """
+    Ejecuta coroutines en paralelo.
+    Orden esperado: historial(list), lead(dict|None), asesor(dict|None), agendamientos(list)
+    Las excepciones se loguean y se reemplazan por el valor vacío correcto para cada posición.
+    """
+    defaults = [[], None, None, []]
     resultados = await asyncio.gather(*coros, return_exceptions=True)
     limpios = []
-    for r in resultados:
+    for i, r in enumerate(resultados):
         if isinstance(r, BaseException):
-            limpios.append(None if not isinstance(r, list) else [])
+            default = defaults[i] if i < len(defaults) else None
+            logger.error(f"_gather[{i}] falló: {r} — usando default={default!r}")
+            limpios.append(default)
         else:
             limpios.append(r)
-    # historial debe ser lista; lead, asesor, agendamientos pueden ser None/[]
-    if limpios[0] is None:
-        limpios[0] = []
-    if len(limpios) > 3 and limpios[3] is None:
-        limpios[3] = []
     return limpios
 
 

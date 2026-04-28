@@ -180,12 +180,24 @@ def _construir_contexto_crm(
             valor = lead.get(campo)
             if valor:
                 partes.append(f"- {etiqueta}: {valor}")
-        if lead.get("asesor_responsable"):
-            linea_asesor = f"\nEl asesor asignado es {lead['asesor_responsable']}"
-            if asesor and asesor.get("telefono"):
-                linea_asesor += f" — teléfono: {asesor['telefono']}"
-            linea_asesor += "."
-            partes.append(linea_asesor)
+
+    # Sección asesor — siempre que exista, independiente del lead
+    if asesor:
+        partes.append("\n## Asesor asignado a este cliente")
+        partes.append(f"- Nombre: {asesor.get('nombre', 'No disponible')}")
+        if asesor.get("telefono"):
+            partes.append(f"- Teléfono WhatsApp: {asesor['telefono']}")
+        if asesor.get("email"):
+            partes.append(f"- Email: {asesor['email']}")
+        partes.append(
+            "IMPORTANTE: Si el cliente pregunta por el teléfono o número de su asesor, "
+            "responde directamente con el teléfono indicado arriba. No digas que no tienes esa información."
+        )
+    elif lead and lead.get("asesor_responsable"):
+        # Tenemos nombre del asesor en el lead pero no pudimos buscarlo en asesores
+        partes.append(f"\n## Asesor asignado a este cliente")
+        partes.append(f"- Nombre: {lead['asesor_responsable']}")
+        partes.append("- Teléfono: no disponible en este momento, deriva al cliente a ventas@sucol.co")
 
     if agendamientos:
         partes.append("\n## Citas agendadas del cliente")
