@@ -161,18 +161,40 @@ async def detectar_proyecto_en_mensaje(mensaje: str) -> dict | None:
 
 # ── Leads ──────────────────────────────────────────────────────────────────────
 
+def _variantes_telefono(telefono: str) -> list[str]:
+    """
+    Genera variantes del número para cubrir distintos formatos en el CRM.
+    Ej: '573217512428' → también prueba '+573217512428' y '3217512428'
+    """
+    t = telefono.strip().replace(" ", "").replace("-", "")
+    variantes = {t}
+    if not t.startswith("+"):
+        variantes.add("+" + t)
+    # Colombia: quitar código de país 57 si el número tiene 12 dígitos
+    if t.startswith("57") and len(t) == 12:
+        variantes.add(t[2:])
+    if t.startswith("+57") and len(t) == 13:
+        variantes.add(t[3:])
+    return list(variantes)
+
+
 async def obtener_lead(telefono: str) -> dict | None:
-    """Retorna todos los datos del lead desde la tabla leads."""
+    """Retorna todos los datos del lead desde la tabla leads.
+    Intenta múltiples formatos del teléfono para cubrir variantes del CRM."""
     if not _crm_disponible():
         return None
+    variantes = _variantes_telefono(telefono)
     try:
         async with _crm_session() as session:
             result = await session.execute(
-                text("SELECT * FROM leads WHERE telefono_principal = :telefono LIMIT 1"),
-                {"telefono": telefono},
+                text("SELECT * FROM leads WHERE telefono_principal = ANY(:nums) LIMIT 1"),
+                {"nums": variantes},
             )
             row = result.mappings().first()
-            return dict(row) if row else None
+            if row:
+                return dict(row)
+            logger.info(f"CRM obtener_lead: sin resultado para variantes {variantes}")
+            return None
     except Exception as e:
         logger.error(f"CRM obtener_lead: {e}")
         return None
