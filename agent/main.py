@@ -137,28 +137,30 @@ async def webhook_handler(request: Request):
                 logger.info(f"Mensaje duplicado ignorado (id={msg.mensaje_id})")
                 continue
 
-            logger.info(f"Mensaje de {msg.telefono}: {msg.texto}")
+            # Normalizar teléfono: el CRM guarda con '+' pero Meta envía sin '+'
+            telefono = "+" + msg.telefono if not msg.telefono.startswith("+") else msg.telefono
+
+            logger.info(f"Mensaje de {telefono}: {msg.texto}")
 
             # ── Paso 1, 2, 3 en paralelo: historial + lead + asesor + agendamientos
             historial, lead, asesor, agendamientos = await _gather(
-                obtener_historial(msg.telefono),
-                obtener_lead(msg.telefono),
-                obtener_asesor_de_lead(msg.telefono),
-                obtener_agendamientos_lead(msg.telefono),
+                obtener_historial(telefono),
+                obtener_lead(telefono),
+                obtener_asesor_de_lead(telefono),
+                obtener_agendamientos_lead(telefono),
             )
 
             # ── Paso 3: detectar proyecto (contactos_whatsapp → leads → mensaje)
-            proyecto = await _detectar_proyecto(msg.telefono, msg.texto)
+            proyecto = await _detectar_proyecto(telefono, msg.texto)
 
             # ── Paso 4: lotes del proyecto (requiere saber el proyecto)
             proyecto_slug = proyecto.get("slug") if proyecto else None
-            proyecto_nombre = proyecto.get("nombre") if proyecto else None
             lotes = await _gather_uno(obtener_lotes_disponibles(proyecto_slug)) if proyecto_slug else []
 
             sistema_prompt = proyecto.get("system_prompt") if proyecto else None
 
             logger.info(
-                f"Contexto {msg.telefono} → proyecto={proyecto_slug or 'ninguno'} "
+                f"Contexto {telefono} → proyecto={proyecto_slug or 'ninguno'} "
                 f"| prompt={'sí' if sistema_prompt else 'NULL/vacío'} "
                 f"| lead={'sí' if lead else 'no'} "
                 f"| lotes={len(lotes)}"
@@ -172,27 +174,27 @@ async def webhook_handler(request: Request):
                     sistema_prompt=sistema_prompt,
                     contexto_lead=lead,
                     lotes_disponibles=lotes,
-                    telefono=msg.telefono,
+                    telefono=telefono,
                     asesor=asesor,
                     agendamientos=agendamientos,
                 )
             except Exception as e:
-                logger.error(f"Error generando respuesta para {msg.telefono}: {e}")
+                logger.error(f"Error generando respuesta para {telefono}: {e}")
                 respuesta = "Hola, estoy teniendo un inconveniente técnico. Por favor intenta en unos minutos."
 
             # ── Guardar memoria y enviar (silenciosos si fallan)
             try:
-                await guardar_mensaje(msg.telefono, "user", msg.texto)
-                await guardar_mensaje(msg.telefono, "assistant", respuesta)
+                await guardar_mensaje(telefono, "user", msg.texto)
+                await guardar_mensaje(telefono, "assistant", respuesta)
             except Exception as e:
-                logger.error(f"Error guardando memoria para {msg.telefono}: {e}")
+                logger.error(f"Error guardando memoria para {telefono}: {e}")
 
             try:
                 await proveedor.enviar_mensaje(msg.telefono, respuesta)
             except Exception as e:
-                logger.error(f"Error enviando mensaje a {msg.telefono}: {e}")
+                logger.error(f"Error enviando mensaje a {telefono}: {e}")
 
-            logger.info(f"Respuesta a {msg.telefono} [{proyecto_slug or 'sin proyecto'}]: {respuesta[:80]}")
+            logger.info(f"Respuesta a {telefono} [{proyecto_slug or 'sin proyecto'}]: {respuesta[:80]}")
 
         return {"status": "ok"}
 
