@@ -10,7 +10,10 @@ import os
 import yaml
 import logging
 import httpx
+import aiosmtplib
 from datetime import datetime
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 from agent.crm import (
     crear_agendamiento, crear_lead, crear_o_actualizar_sofia_lead,
@@ -19,6 +22,100 @@ from agent.crm import (
 )
 
 logger = logging.getLogger("agentkit")
+
+# ── Configuración de correo SES ───────────────────────────────────────────────
+_SES_HOST = os.getenv("SES_SMTP_HOST", "email-smtp.us-east-1.amazonaws.com")
+_SES_PORT = int(os.getenv("SES_SMTP_PORT", "587"))
+_SES_USER = os.getenv("SES_SMTP_USER", "")
+_SES_PASS = os.getenv("SES_SMTP_PASSWORD", "")
+_SES_FROM = os.getenv("SES_FROM_EMAIL", "sofia@sucol.co")
+_EMAIL_CC  = "craveg@gmail.com"
+
+# Destinatarios por área
+_AREAS_EMAIL = {
+    "clientes": "clientes@sucol.co",        # Kelvin — soporte, postventa, cartera
+}
+
+
+async def _enviar_email(destinatario: str, asunto: str, cuerpo: str) -> bool:
+    """Envía un correo vía AWS SES SMTP con CC a craveg@gmail.com."""
+    if not _SES_USER or not _SES_PASS:
+        logger.warning("SES_SMTP_USER / SES_SMTP_PASSWORD no configurados — correo no enviado")
+        return False
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = asunto
+        msg["From"]    = f"Sofía Sucol <{_SES_FROM}>"
+        msg["To"]      = destinatario
+        msg["Cc"]      = _EMAIL_CC
+        msg.attach(MIMEText(cuerpo, "plain", "utf-8"))
+
+        await aiosmtplib.send(
+            msg,
+            hostname=_SES_HOST,
+            port=_SES_PORT,
+            username=_SES_USER,
+            password=_SES_PASS,
+            start_tls=True,
+            recipients=[destinatario, _EMAIL_CC],
+        )
+        logger.info(f"Correo enviado a {destinatario} (CC: {_EMAIL_CC}) — {asunto}")
+        return True
+    except Exception as e:
+        logger.error(f"Error enviando correo a {destinatario}: {e}")
+        return False
+
+
+async def notificar_area_por_correo(
+    area: str,
+    nombre_cliente: str,
+    cedula: str,
+    correo_cliente: str,
+    telefono_cliente: str,
+    proyecto_lote: str,
+    descripcion_solicitud: str,
+) -> str:
+    """
+    Envía una notificación por correo al área correspondiente con los datos
+    del cliente y su solicitud especial.
+
+    Args:
+        area: Área destino — 'clientes' (Kelvin: soporte, postventa, cartera, escrituras, PQRS)
+        nombre_cliente: Nombre completo del cliente
+        cedula: Número de cédula o NIT
+        correo_cliente: Correo del cliente
+        telefono_cliente: Teléfono del cliente
+        proyecto_lote: Proyecto y/o número de lote
+        descripcion_solicitud: Descripción detallada de la solicitud
+
+    Returns:
+        Mensaje de confirmación para transmitir al cliente
+    """
+    destinatario = _AREAS_EMAIL.get(area.lower())
+    if not destinatario:
+        logger.warning(f"notificar_area_por_correo: área '{area}' no reconocida")
+        return "Tu solicitud fue registrada. El equipo correspondiente te contactará pronto."
+
+    asunto = f"[Sofía] Nueva solicitud — {nombre_cliente}"
+    cuerpo = (
+        f"Nueva solicitud recibida por Sofía\n"
+        f"{'='*50}\n\n"
+        f"👤 Nombre:          {nombre_cliente}\n"
+        f"🪪 Cédula/NIT:      {cedula}\n"
+        f"📧 Correo:          {correo_cliente}\n"
+        f"📱 Teléfono:        {telefono_cliente}\n"
+        f"🏡 Proyecto/Lote:   {proyecto_lote}\n\n"
+        f"📄 Solicitud:\n{descripcion_solicitud}\n\n"
+        f"{'='*50}\n"
+        f"Este mensaje fue generado automáticamente por Sofía.\n"
+    )
+
+    enviado = await _enviar_email(destinatario, asunto, cuerpo)
+
+    if enviado:
+        return "Tu solicitud fue registrada exitosamente. El equipo te contactará en las próximas 24 a 48 horas hábiles. ✅"
+    return "Tu solicitud fue registrada. El equipo correspondiente te contactará pronto."
+
 
 _N8N_WEBHOOK_CITA = os.getenv(
     "N8N_WEBHOOK_CITA",

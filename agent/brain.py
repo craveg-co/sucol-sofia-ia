@@ -235,6 +235,31 @@ async def _prompt_bienvenida_con_proyectos() -> str:
     return _PROMPT_BIENVENIDA.format(lista_proyectos=lista)
 
 
+_TOOL_NOTIFICAR_AREA = {
+    "name": "notificar_area_por_correo",
+    "description": (
+        "Envía por correo electrónico una solicitud especial del cliente al área correspondiente. "
+        "Úsalo cuando el cliente tenga solicitudes de: soporte postventa, cartera, escrituras, "
+        "quejas, PQRS, procesos legales o cualquier trámite que no sea una cita comercial."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "area": {
+                "type": "string",
+                "description": "Área destino. Por ahora solo 'clientes' (Kelvin Herrera — soporte/postventa/cartera)",
+            },
+            "nombre_cliente": {"type": "string", "description": "Nombre completo del cliente"},
+            "cedula": {"type": "string", "description": "Cédula o NIT del cliente"},
+            "correo_cliente": {"type": "string", "description": "Correo electrónico del cliente"},
+            "telefono_cliente": {"type": "string", "description": "Teléfono del cliente"},
+            "proyecto_lote": {"type": "string", "description": "Proyecto y/o número de lote relacionado"},
+            "descripcion_solicitud": {"type": "string", "description": "Descripción completa de la solicitud"},
+        },
+        "required": ["area", "nombre_cliente", "cedula", "correo_cliente", "telefono_cliente", "proyecto_lote", "descripcion_solicitud"],
+    },
+}
+
 _TOOL_ESCALAR_ASESOR = {
     "name": "escalar_a_asesor",
     "description": (
@@ -313,7 +338,7 @@ async def generar_respuesta_con_tools(
     el resultado antes de obtener el mensaje final para el cliente.
     Retorna solo el texto de respuesta para el cliente.
     """
-    from agent.tools import confirmar_cita, escalar_a_asesor  # import local para evitar ciclos
+    from agent.tools import confirmar_cita, escalar_a_asesor, notificar_area_por_correo  # import local para evitar ciclos
 
     if not mensaje or len(mensaje.strip()) < 2:
         return _mensaje_fallback()
@@ -341,7 +366,7 @@ async def generar_respuesta_con_tools(
             max_tokens=1024,
             system=prompt_final,
             messages=mensajes,
-            tools=[_TOOL_CONFIRMAR_CITA, _TOOL_ESCALAR_ASESOR],
+            tools=[_TOOL_CONFIRMAR_CITA, _TOOL_ESCALAR_ASESOR, _TOOL_NOTIFICAR_AREA],
         )
 
         if response.stop_reason == "tool_use":
@@ -361,6 +386,12 @@ async def generar_respuesta_con_tools(
                     except Exception as e:
                         logger.error(f"Error ejecutando escalar_a_asesor: {e}")
                         resultado_tool = "Hubo un problema al contactar al asesor. Por favor intenta de nuevo."
+                elif tu.name == "notificar_area_por_correo":
+                    try:
+                        resultado_tool = await notificar_area_por_correo(**tu.input)
+                    except Exception as e:
+                        logger.error(f"Error ejecutando notificar_area_por_correo: {e}")
+                        resultado_tool = "Tu solicitud fue registrada. El equipo te contactará pronto."
                 else:
                     resultado_tool = f"Herramienta {tu.name} no reconocida."
 
@@ -380,7 +411,7 @@ async def generar_respuesta_con_tools(
                 max_tokens=1024,
                 system=prompt_final,
                 messages=mensajes_con_resultado,
-                tools=[_TOOL_CONFIRMAR_CITA, _TOOL_ESCALAR_ASESOR],
+                tools=[_TOOL_CONFIRMAR_CITA, _TOOL_ESCALAR_ASESOR, _TOOL_NOTIFICAR_AREA],
             )
             respuesta = response2.content[0].text
             logger.info(
