@@ -186,15 +186,17 @@ async def obtener_lead(telefono: str) -> dict | None:
     variantes = _variantes_telefono(telefono)
     try:
         async with _crm_session() as session:
-            result = await session.execute(
-                text("SELECT * FROM leads WHERE telefono_principal = ANY(:nums) LIMIT 1"),
-                {"nums": variantes},
-            )
-            row = result.mappings().first()
-            if row:
-                return dict(row)
-            logger.info(f"CRM obtener_lead: sin resultado para variantes {variantes}")
-            return None
+            for variante in variantes:
+                result = await session.execute(
+                    text("SELECT * FROM leads WHERE telefono_principal = :tel LIMIT 1"),
+                    {"tel": variante},
+                )
+                row = result.mappings().first()
+                if row:
+                    logger.info(f"CRM obtener_lead: encontrado con variante '{variante}'")
+                    return dict(row)
+        logger.info(f"CRM obtener_lead: sin resultado para variantes {variantes}")
+        return None
     except Exception as e:
         logger.error(f"CRM obtener_lead: {e}")
         return None
