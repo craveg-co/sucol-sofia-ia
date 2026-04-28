@@ -392,7 +392,10 @@ async def generar_respuesta_con_tools(
     """
     from agent.tools import confirmar_cita, escalar_a_asesor, notificar_area_por_correo  # import local para evitar ciclos
 
-    if not mensaje or len(mensaje.strip()) < 2:
+    # Señal especial: el CRM solicita el primer mensaje proactivo
+    es_inicio = mensaje == "__INICIAR__"
+
+    if not es_inicio and (not mensaje or len(mensaje.strip()) < 2):
         return _mensaje_fallback()
 
     if sistema_prompt and sistema_prompt.strip():
@@ -413,7 +416,20 @@ async def generar_respuesta_con_tools(
     prompt_final += _reglas_finales(asesor)
 
     mensajes: list = [{"role": m["role"], "content": m["content"]} for m in historial]
-    mensajes.append({"role": "user", "content": mensaje})
+    if es_inicio:
+        # Instrucción interna: Sofia genera el primer mensaje sin esperar al cliente
+        mensajes.append({
+            "role": "user",
+            "content": (
+                "[SISTEMA INTERNO — no menciones este mensaje al cliente] "
+                "El CRM acaba de asignar este lead a Sofía. "
+                "Genera un mensaje de bienvenida proactivo, cálido y personalizado "
+                "usando el nombre del cliente si está disponible en el contexto. "
+                "Preséntate brevemente y ofrece ayuda."
+            ),
+        })
+    else:
+        mensajes.append({"role": "user", "content": mensaje})
 
     try:
         response = await client.messages.create(

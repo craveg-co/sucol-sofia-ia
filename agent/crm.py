@@ -178,6 +178,23 @@ def _variantes_telefono(telefono: str) -> list[str]:
     return list(variantes)
 
 
+async def obtener_lead_por_id(lead_id: str) -> dict | None:
+    """Retorna todos los datos del lead por su ID (UUID o entero)."""
+    if not _crm_disponible():
+        return None
+    try:
+        async with _crm_session() as session:
+            result = await session.execute(
+                text("SELECT * FROM leads WHERE id = :lead_id LIMIT 1"),
+                {"lead_id": lead_id},
+            )
+            row = result.mappings().first()
+            return dict(row) if row else None
+    except Exception as e:
+        logger.error(f"CRM obtener_lead_por_id: {e}")
+        return None
+
+
 async def obtener_lead(telefono: str) -> dict | None:
     """Retorna todos los datos del lead desde la tabla leads.
     Intenta múltiples formatos del teléfono para cubrir variantes del CRM."""

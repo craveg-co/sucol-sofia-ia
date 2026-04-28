@@ -15,6 +15,7 @@ from collections import OrderedDict
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from agent.brain import generar_respuesta_con_tools
@@ -24,6 +25,7 @@ from agent.crm import (
     obtener_proyecto_por_telefono,
     detectar_proyecto_en_mensaje,
     obtener_lead,
+    obtener_lead_por_id,
     obtener_lotes_disponibles,
     obtener_agendamientos_lead,
     obtener_asesor_de_lead,
@@ -172,6 +174,62 @@ async def debug_contexto(telefono: str):
         "9_agendamientos": len(agendamientos),
         "10_agendamientos_detalle": agendamientos,
     }
+
+
+class IniciarPayload(BaseModel):
+    lead_id: str
+
+
+@app.post("/iniciar")
+async def iniciar_conversacion(payload: IniciarPayload):
+    """
+    Llamado desde el CRM cuando se asigna un lead a Sofía.
+    Busca el teléfono del lead y dispara el primer mensaje proactivo.
+    """
+    lead = await obtener_lead_por_id(payload.lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead no encontrado")
+
+    telefono = lead.get("telefono_principal")
+    if not telefono:
+        raise HTTPException(status_code=422, detail="Lead sin teléfono")
+
+    tel_norm = "+" + telefono if not telefono.startswith("+") else telefono
+
+    proyecto = await _detectar_proyecto(tel_norm, "")
+    sistema_prompt = proyecto.get("system_prompt") if proyecto else None
+    proyecto_slug = proyecto.get("slug") if proyecto else None
+    lotes = await _gather_uno(obtener_lotes_disponibles(proyecto_slug)) if proyecto_slug else []
+    asesor = await obtener_asesor_de_lead(tel_norm) if lead else None
+
+    try:
+        respuesta = await generar_respuesta_con_tools(
+            mensaje="__INICIAR__",
+            historial=[],
+            sistema_prompt=sistema_prompt,
+            contexto_lead=lead,
+            lotes_disponibles=lotes,
+            telefono=tel_norm,
+            asesor=asesor,
+            agendamientos=[],
+        )
+    except Exception as e:
+        logger.error(f"Error generando mensaje inicial para {tel_norm}: {e}")
+        raise HTTPException(status_code=500, detail="Error generando mensaje inicial")
+
+    try:
+        await guardar_mensaje(tel_norm, "assistant", respuesta)
+    except Exception as e:
+        logger.warning(f"Error guardando mensaje inicial en memoria: {e}")
+
+    try:
+        await proveedor.enviar_mensaje(telefono, respuesta)
+    except Exception as e:
+        logger.error(f"Error enviando mensaje inicial a {tel_norm}: {e}")
+        raise HTTPException(status_code=502, detail="Error enviando mensaje por WhatsApp")
+
+    logger.info(f"Conversación iniciada con {tel_norm} — proyecto={proyecto_slug}")
+    return {"status": "ok", "telefono": tel_norm, "proyecto": proyecto_slug}
 
 
 @app.get("/webhook")
