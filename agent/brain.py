@@ -63,10 +63,10 @@ async def _obtener_prompt_global() -> str:
         logger.warning(f"No se pudo leer prompt global de Supabase: {e}")
         valor = ""
 
-    _cache_global_prompt = valor
+    _cache_global_prompt = _limpiar_prompt(valor)
     _cache_timestamp = ahora
     logger.info(f"Prompt global cargado ({len(valor)} chars): {valor[:80]!r}")
-    return valor
+    return _cache_global_prompt
 
 
 def _obtener_prompt_global_resuelto() -> str:
@@ -147,8 +147,24 @@ def _resolver_variables_prompt(prompt: str) -> str:
     """Reemplaza variables de n8n ({{ $now... }}) por la fecha real de Colombia."""
     import re
     fecha = _fecha_colombia()
-    # Reemplazar cualquier expresión {{ ... }} con la fecha actual
     return re.sub(r"\{\{[^}]+\}\}", fecha, prompt)
+
+
+# Frases de sistemas obsoletos que deben eliminarse de cualquier prompt cargado
+_FRASES_OBSOLETAS = [
+    "CRM Kommo",
+    "Kommo",
+    "kommo",
+    "crm kommo",
+    # Si en el futuro hay otros sistemas reemplazados, agregarlos aquí
+]
+
+
+def _limpiar_prompt(prompt: str) -> str:
+    """Elimina referencias a sistemas obsoletos del prompt."""
+    for frase in _FRASES_OBSOLETAS:
+        prompt = prompt.replace(frase, "el CRM de Sucol")
+    return prompt
 
 
 def _construir_contexto_crm(
@@ -334,6 +350,30 @@ _TOOL_CONFIRMAR_CITA = {
 }
 
 
+def _reglas_finales(asesor: dict | None) -> str:
+    """
+    Bloque de reglas inyectado al FINAL del system prompt para que prevalezcan
+    sobre cualquier instrucción anterior que pueda estar desactualizada.
+    """
+    lineas = [
+        "\n\n## REGLAS DE COMPORTAMIENTO — PRIORIDAD MÁXIMA",
+        "Estas reglas anulan cualquier instrucción anterior que las contradiga:",
+        "",
+        "- NO menciones herramientas externas como 'Kommo', 'CRM Kommo' ni ningún "
+        "sistema que no sea el CRM de Sucol. Esos sistemas ya no existen.",
+        "- NO digas que 'no tienes acceso al CRM' ni que 'no puedes consultar datos'. "
+        "Toda la información del cliente y del asesor ya está en tu contexto.",
+        "- La fecha de hoy es: " + _fecha_colombia(),
+        "- Usa esa fecha exacta siempre que necesites referenciar el día de hoy.",
+    ]
+    if asesor and asesor.get("telefono"):
+        lineas.append(
+            f"- El teléfono del asesor asignado es {asesor['telefono']}. "
+            "Si el cliente lo pide, dáselo directamente sin agregar advertencias ni excusas."
+        )
+    return "\n".join(lineas)
+
+
 async def generar_respuesta_con_tools(
     mensaje: str,
     historial: list[dict],
@@ -368,6 +408,9 @@ async def generar_respuesta_con_tools(
     contexto_crm = _construir_contexto_crm(contexto_lead, lotes_disponibles or [], asesor, agendamientos or [])
     if contexto_crm:
         prompt_final += "\n\n" + contexto_crm
+
+    # Reglas finales de prioridad máxima — siempre al final para prevalecer sobre el prompt base
+    prompt_final += _reglas_finales(asesor)
 
     mensajes: list = [{"role": m["role"], "content": m["content"]} for m in historial]
     mensajes.append({"role": "user", "content": mensaje})
@@ -479,6 +522,8 @@ async def generar_respuesta(
     contexto_crm = _construir_contexto_crm(contexto_lead, lotes_disponibles or [], asesor, agendamientos or [])
     if contexto_crm:
         prompt_final += "\n\n" + contexto_crm
+
+    prompt_final += _reglas_finales(asesor)
 
     mensajes = [{"role": m["role"], "content": m["content"]} for m in historial]
     mensajes.append({"role": "user", "content": mensaje})
