@@ -236,6 +236,24 @@ async def actualizar_lead_crm(telefono: str, datos: dict):
         logger.error(f"CRM actualizar_lead_crm: {e}")
 
 
+async def actualizar_lead_por_id(lead_id: str, datos: dict):
+    """Actualiza campos del lead por su PK. Más preciso que por teléfono."""
+    if not _crm_disponible() or not datos:
+        return
+    try:
+        sets = ", ".join(f"{k} = :{k}" for k in datos)
+        params = {"lead_id": lead_id, **datos}
+        async with _crm_session() as session:
+            await session.execute(
+                text(f"UPDATE leads SET {sets} WHERE id = :lead_id"),
+                params,
+            )
+            await session.commit()
+        logger.info(f"CRM actualizar_lead_por_id {lead_id}: {list(datos.keys())}")
+    except Exception as e:
+        logger.error(f"CRM actualizar_lead_por_id: {e}")
+
+
 # ── Contactos WhatsApp ─────────────────────────────────────────────────────────
 
 async def crear_o_actualizar_contacto_whatsapp(telefono: str, datos: dict):

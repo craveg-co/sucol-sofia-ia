@@ -18,7 +18,7 @@ from email.mime.multipart import MIMEMultipart
 from agent.crm import (
     crear_agendamiento, crear_lead, crear_o_actualizar_sofia_lead,
     obtener_lead, obtener_asesor_de_lead, obtener_asesor_por_user_id,
-    actualizar_lead_crm,
+    actualizar_lead_crm, actualizar_lead_por_id,
 )
 
 logger = logging.getLogger("agentkit")
@@ -336,10 +336,16 @@ async def confirmar_cita(
         if agendamiento:
             logger.info(f"Cita creada id={agendamiento.get('id')} lead={lead_id} {fecha_cita} {hora_cita}")
             try:
-                await actualizar_lead_crm(telefono, {"etapa_lead": "VISITA AGENDADA"})
-                logger.info(f"Lead {telefono} avanzado a etapa VISITA AGENDADA")
+                update_leads = {"etapa_lead": "calificado"}
+                # visita_fecha como TIMESTAMPTZ Colombia (UTC-5) — dispara trg_enqueue_e3
+                update_leads["visita_fecha"] = f"{fecha_cita}T{hora_cita}:00-05:00"
+                # asesor_id requerido para que el trigger no se salte silenciosamente
+                if asesor_id:
+                    update_leads["asesor_id"] = asesor_id
+                await actualizar_lead_por_id(str(lead_id), update_leads)
+                logger.info(f"Lead {lead_id} → etapa=calificado visita_fecha={update_leads['visita_fecha']} asesor_id={asesor_id}")
             except Exception as e:
-                logger.warning(f"confirmar_cita: no se pudo actualizar etapa del lead: {e}")
+                logger.warning(f"confirmar_cita: no se pudo actualizar lead: {e}")
         else:
             logger.error(f"confirmar_cita: INSERT fallido para lead {lead_id} ({telefono})")
     else:
