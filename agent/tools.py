@@ -45,7 +45,7 @@ async def _enviar_email(destinatario: str, asunto: str, cuerpo: str) -> bool:
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = asunto
-        msg["From"]    = f"Sofía Sucol <{_SES_FROM}>"
+        msg["From"]    = _SES_FROM
         msg["To"]      = destinatario
         msg["Cc"]      = _EMAIL_CC
         msg.attach(MIMEText(cuerpo, "plain", "utf-8"))
@@ -358,7 +358,7 @@ async def confirmar_cita(
                 "telefono_cliente": telefono,
                 "resumen_conversacion": resumen,
                 "video_url": video_url or "",
-                "agendamiento_id": agendamiento.get("id"),
+                "agendamiento_id": agendamiento.get("id") if agendamiento else None,
             })
             if r.status_code < 300:
                 logger.info(f"Notificación enviada a n8n para {asesor_nombre} ({asesor_telefono})")

@@ -258,7 +258,7 @@ async def _detectar_proyecto(telefono: str, mensaje: str) -> dict | None:
         try:
             await crear_o_actualizar_contacto_whatsapp(
                 telefono,
-                {"proyecto_slug": proyecto["slug"], "etapa_chat": "prospecto"},
+                {"proyecto_slug": proyecto["slug"]},
             )
         except Exception as e:
             logger.warning(f"No se pudo guardar proyecto detectado para {telefono}: {e}")
