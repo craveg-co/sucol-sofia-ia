@@ -311,6 +311,33 @@ _TOOL_ESCALAR_ASESOR = {
     },
 }
 
+_TOOL_CALIFICAR_SIN_VISITA = {
+    "name": "calificar_lead_sin_visita",
+    "description": (
+        "Registra al lead como calificado cuando ha mostrado interés claro pero "
+        "no quiere agendar una cita todavía. Un asesor de Sucol lo contactará directamente. "
+        "Usar cuando el lead perfiló sus necesidades, presupuesto o proyecto de interés "
+        "pero prefiere que lo llamen, necesita tiempo para decidir, o no está listo para agendar."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "nombre_cliente": {
+                "type": "string",
+                "description": "Nombre del cliente si se conoce, si no escribir 'Cliente'",
+            },
+            "resumen": {
+                "type": "string",
+                "description": (
+                    "Resumen de la conversación: proyecto de interés, presupuesto, "
+                    "propósito de compra, dudas principales y por qué no agendó visita"
+                ),
+            },
+        },
+        "required": ["nombre_cliente", "resumen"],
+    },
+}
+
 _TOOL_CONFIRMAR_CITA = {
     "name": "confirmar_cita",
     "description": (
@@ -390,7 +417,7 @@ async def generar_respuesta_con_tools(
     el resultado antes de obtener el mensaje final para el cliente.
     Retorna solo el texto de respuesta para el cliente.
     """
-    from agent.tools import confirmar_cita, escalar_a_asesor, notificar_area_por_correo  # import local para evitar ciclos
+    from agent.tools import confirmar_cita, escalar_a_asesor, notificar_area_por_correo, calificar_lead_sin_visita  # import local para evitar ciclos
 
     # Señal especial: el CRM solicita el primer mensaje proactivo
     es_inicio = mensaje == "__INICIAR__"
@@ -437,7 +464,7 @@ async def generar_respuesta_con_tools(
             max_tokens=1024,
             system=prompt_final,
             messages=mensajes,
-            tools=[_TOOL_CONFIRMAR_CITA, _TOOL_ESCALAR_ASESOR, _TOOL_NOTIFICAR_AREA],
+            tools=[_TOOL_CONFIRMAR_CITA, _TOOL_ESCALAR_ASESOR, _TOOL_NOTIFICAR_AREA, _TOOL_CALIFICAR_SIN_VISITA],
         )
 
         if response.stop_reason == "tool_use":
@@ -463,6 +490,12 @@ async def generar_respuesta_con_tools(
                     except Exception as e:
                         logger.error(f"Error ejecutando notificar_area_por_correo: {e}")
                         resultado_tool = "Tu solicitud fue registrada. El equipo te contactará pronto."
+                elif tu.name == "calificar_lead_sin_visita":
+                    try:
+                        resultado_tool = await calificar_lead_sin_visita(telefono=telefono, **tu.input)
+                    except Exception as e:
+                        logger.error(f"Error ejecutando calificar_lead_sin_visita: {e}")
+                        resultado_tool = "Tus datos quedaron registrados. Un asesor te contactará pronto."
                 else:
                     resultado_tool = f"Herramienta {tu.name} no reconocida."
 
@@ -482,7 +515,7 @@ async def generar_respuesta_con_tools(
                 max_tokens=1024,
                 system=prompt_final,
                 messages=mensajes_con_resultado,
-                tools=[_TOOL_CONFIRMAR_CITA, _TOOL_ESCALAR_ASESOR, _TOOL_NOTIFICAR_AREA],
+                tools=[_TOOL_CONFIRMAR_CITA, _TOOL_ESCALAR_ASESOR, _TOOL_NOTIFICAR_AREA, _TOOL_CALIFICAR_SIN_VISITA],
             )
             respuesta = response2.content[0].text
             logger.info(

@@ -19,6 +19,7 @@ from agent.crm import (
     crear_agendamiento, crear_lead, crear_o_actualizar_sofia_lead,
     obtener_lead, obtener_asesor_de_lead, obtener_asesor_por_user_id,
     actualizar_lead_crm, actualizar_lead_por_id,
+    _actualizar_sofia_leads_etapa,
 )
 
 logger = logging.getLogger("agentkit")
@@ -375,6 +376,55 @@ async def confirmar_cita(
         logger.error(f"confirmar_cita: error llamando webhook n8n: {e}")
 
     return f"Cita agendada para el {fecha_cita} a las {hora_cita}. Un asesor se pondrá en contacto contigo."
+
+
+async def calificar_lead_sin_visita(
+    telefono: str,
+    nombre_cliente: str,
+    resumen: str,
+) -> str:
+    """
+    Marca el lead como calificado sin agendar visita.
+    Dispara trg_enqueue_e1a_sofia en leads-sucol para que el asesor lo contacte.
+    """
+    lead = await obtener_lead(telefono)
+    if not lead:
+        lead = await crear_lead({"nombre_completo": nombre_cliente, "telefono_principal": telefono})
+
+    lead_id = lead.get("id") if lead else None
+
+    sofia_lead = None
+    if lead_id:
+        sofia_lead = await crear_o_actualizar_sofia_lead(
+            str(lead_id), lead.get("proyecto_id"), "calificado"
+        )
+
+    asesor = None
+    if sofia_lead and sofia_lead.get("asesor_asignado_id"):
+        asesor = await obtener_asesor_por_user_id(str(sofia_lead["asesor_asignado_id"]))
+    if not asesor:
+        asesor = await obtener_asesor_de_lead(telefono)
+
+    asesor_id = asesor.get("user_id") if asesor else None
+    asesor_nombre = (
+        (asesor.get("nombre") if asesor else None)
+        or (lead.get("asesor_responsable") if lead else None)
+        or "Asesor Sucol"
+    )
+
+    if lead_id:
+        update_data: dict = {"etapa_lead": "calificado", "resumen_conversacion": resumen}
+        if asesor_id:
+            update_data["asesor_id"] = asesor_id
+            update_data["asesor_responsable"] = asesor_nombre
+        await actualizar_lead_por_id(str(lead_id), update_data)
+        logger.info(f"calificar_lead_sin_visita lead={lead_id} asesor={asesor_nombre}")
+
+    return (
+        f"Listo, {nombre_cliente}. Tus datos quedaron registrados y un asesor "
+        f"de Sucol ({asesor_nombre}) se pondrá en contacto contigo pronto. "
+        f"¿Hay algo más en lo que pueda ayudarte?"
+    )
 
 
 # ════════════════════════════════════════

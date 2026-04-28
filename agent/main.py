@@ -31,6 +31,7 @@ from agent.crm import (
     obtener_asesor_de_lead,
     crear_o_actualizar_contacto_whatsapp,
     marcar_incontactable,
+    marcar_sofia_lead_respondio,
 )
 
 load_dotenv()
@@ -294,6 +295,10 @@ async def webhook_handler(request: Request):
                 obtener_asesor_de_lead(telefono),
                 obtener_agendamientos_lead(telefono),
             )
+
+            # Primer mensaje del lead → marcar respondio en sofia_leads (silencioso)
+            if not historial and lead and lead.get("id"):
+                asyncio.create_task(marcar_sofia_lead_respondio(str(lead["id"])))
 
             # ── Paso 3: detectar proyecto (contactos_whatsapp → leads → mensaje)
             proyecto = await _detectar_proyecto(telefono, msg.texto)

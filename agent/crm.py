@@ -592,18 +592,57 @@ async def marcar_incontactable(lead_id: str, proyecto: str | None) -> bool:
         logger.info(f"marcar_incontactable lead={lead_id}: sin asesores disponibles — pendiente asignación manual")
 
     # Siempre actualizar sofia_leads sin importar si se asignó asesor
+    await _actualizar_sofia_leads_etapa(lead_id, "incontactable")
+    return asignado
+
+
+async def marcar_sofia_lead_respondio(lead_id: str):
+    """
+    Marca en sofia_leads que el lead respondió por primera vez.
+    Solo actualiza si la etapa es 'primer_contacto' o 'segundo_contacto'
+    para no sobreescribir estados más avanzados.
+    """
+    await _actualizar_sofia_leads_etapa(
+        lead_id, "respondio",
+        solo_si_etapa_en=("primer_contacto", "segundo_contacto"),
+        campos_extra={"fecha_respuesta": "NOW()"},
+    )
+
+
+async def _actualizar_sofia_leads_etapa(
+    lead_id: str,
+    etapa: str,
+    solo_si_etapa_en: tuple | None = None,
+    campos_extra: dict | None = None,
+):
+    """Helper interno: UPDATE sofia_leads SET etapa + campos opcionales."""
+    if not _crm_disponible():
+        return
     try:
+        where = "lead_id = :lead_id"
+        params: dict = {"lead_id": lead_id, "etapa": etapa}
+
+        sets = "etapa = :etapa, updated_at = now()"
+        if campos_extra:
+            for k, v in campos_extra.items():
+                if v == "NOW()":
+                    sets += f", {k} = now()"
+                else:
+                    sets += f", {k} = :{k}"
+                    params[k] = v
+
+        if solo_si_etapa_en:
+            placeholders = ", ".join(f":e{i}" for i in range(len(solo_si_etapa_en)))
+            where += f" AND etapa IN ({placeholders})"
+            for i, e in enumerate(solo_si_etapa_en):
+                params[f"e{i}"] = e
+
         async with _crm_session() as session:
             await session.execute(
-                text("""
-                    UPDATE sofia_leads SET etapa = 'incontactable', updated_at = now()
-                    WHERE lead_id = :lead_id
-                """),
-                {"lead_id": lead_id},
+                text(f"UPDATE sofia_leads SET {sets} WHERE {where}"),
+                params,
             )
             await session.commit()
-        logger.info(f"sofia_leads lead={lead_id} → etapa=incontactable")
+        logger.info(f"sofia_leads lead={lead_id} → etapa={etapa}")
     except Exception as e:
-        logger.error(f"marcar_incontactable sofia_leads UPDATE: {e}")
-
-    return asignado
+        logger.error(f"_actualizar_sofia_leads_etapa lead={lead_id} etapa={etapa}: {e}")
