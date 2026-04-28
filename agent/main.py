@@ -94,20 +94,83 @@ async def health_check():
 
 
 @app.get("/debug/{telefono}")
-async def debug_contexto(telefono: str, mensaje: str = "santa elena"):
-    """Diagnóstico: muestra qué contexto CRM resuelve Sofía para un teléfono."""
-    from agent.crm import obtener_proyecto_por_telefono, detectar_proyecto_en_mensaje, obtener_lead, obtener_lotes_disponibles
-    proyecto = await _detectar_proyecto(telefono, mensaje)
-    lead = await obtener_lead(telefono)
-    lotes = await obtener_lotes_disponibles(proyecto.get("slug")) if proyecto else []
+async def debug_contexto(telefono: str):
+    """
+    Diagnóstico completo: muestra exactamente qué ve Sofía para un número.
+    Usar con el número tal como llega de WhatsApp (sin +).
+    Ejemplo: GET /debug/573217512428
+    """
+    from agent.crm import (
+        obtener_lead, obtener_asesor_de_lead, obtener_lotes_disponibles,
+        obtener_agendamientos_lead, _variantes_telefono,
+    )
+    from agent.crm import _crm_session
+    from sqlalchemy import text as _text
+
+    # 1. Normalizar teléfono (igual que el webhook)
+    tel_norm = "+" + telefono if not telefono.startswith("+") else telefono
+    variantes = _variantes_telefono(tel_norm)
+
+    # 2. Lead
+    lead = await obtener_lead(tel_norm)
+
+    # 3. Asesor
+    asesor = await obtener_asesor_de_lead(tel_norm) if lead else None
+
+    # 4. Proyecto y lotes
+    proyecto = await _detectar_proyecto(tel_norm, "")
+    proyecto_slug = proyecto.get("slug") if proyecto else None
+    lotes = await obtener_lotes_disponibles(proyecto_slug) if proyecto_slug else []
+
+    # 5. Agendamientos
+    agendamientos = await obtener_agendamientos_lead(tel_norm) if lead else []
+
+    # 6. Verificar lotes directamente en la tabla (sin filtro de estado)
+    lotes_raw = []
+    if proyecto_slug and _crm_session:
+        try:
+            async with _crm_session() as s:
+                r = await s.execute(
+                    _text("""
+                        SELECT l.codigo, l.estado
+                        FROM lotes l
+                        JOIN proyectos p ON p.id = l.proyecto_id
+                        WHERE p.slug = :slug
+                        LIMIT 10
+                    """),
+                    {"slug": proyecto_slug},
+                )
+                lotes_raw = [dict(row) for row in r.mappings().all()]
+        except Exception as e:
+            lotes_raw = [{"error": str(e)}]
+
     return {
-        "telefono": telefono,
-        "proyecto_encontrado": proyecto.get("slug") if proyecto else None,
-        "tiene_system_prompt": bool(proyecto.get("system_prompt")) if proyecto else False,
-        "largo_system_prompt": len(proyecto.get("system_prompt") or "") if proyecto else 0,
-        "lead_encontrado": bool(lead),
-        "lead_nombre": lead.get("nombre_completo") if lead else None,
-        "lotes_disponibles": len(lotes),
+        "1_telefono_recibido": telefono,
+        "2_telefono_normalizado": tel_norm,
+        "3_variantes_buscadas": variantes,
+        "4_lead": {
+            "encontrado": bool(lead),
+            "nombre": lead.get("nombre_completo") if lead else None,
+            "asesor_responsable": lead.get("asesor_responsable") if lead else None,
+            "proyecto": lead.get("proyecto") if lead else None,
+            "etapa": lead.get("etapa_lead") if lead else None,
+        },
+        "5_asesor": {
+            "encontrado": bool(asesor),
+            "nombre": asesor.get("nombre") if asesor else None,
+            "telefono": asesor.get("telefono") if asesor else None,
+            "email": asesor.get("email") if asesor else None,
+        },
+        "6_proyecto": {
+            "encontrado": bool(proyecto),
+            "slug": proyecto_slug,
+            "nombre": proyecto.get("nombre") if proyecto else None,
+            "tiene_system_prompt": bool(proyecto.get("system_prompt")) if proyecto else False,
+        },
+        "7_lotes_disponibles": len(lotes),
+        "8_lotes_en_bd_sin_filtro": lotes_raw,
+        "9_agendamientos": len(agendamientos),
+        "10_agendamientos_detalle": agendamientos,
     }
 
 
