@@ -3,6 +3,7 @@
 import os
 import ssl
 import logging
+import httpx
 from datetime import date, time
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy import text
@@ -527,3 +528,82 @@ async def obtener_asesor_de_lead(telefono_cliente: str) -> dict | None:
 
     logger.info(f"CRM obtener_asesor_de_lead: sin asesor para {telefono_cliente}")
     return None
+
+
+# ── Caso B: incontactable ──────────────────────────────────────────────────────
+
+async def pick_asesor(lead_id: str, proyecto: str | None) -> dict:
+    """
+    Llama al edge function de leads-sucol para obtener el asesor disponible.
+    Retorna { asesor_id: str|None, asesor_nombre: str|None }.
+    """
+    supabase_url = os.getenv("SUPABASE_URL", "")
+    supabase_key = os.getenv("SUPABASE_SERVICE_KEY", "")
+    if not supabase_url or not supabase_key:
+        logger.warning("pick_asesor: SUPABASE_URL / SUPABASE_SERVICE_KEY no configurados")
+        return {"asesor_id": None, "asesor_nombre": None}
+    try:
+        async with httpx.AsyncClient(timeout=10) as http:
+            r = await http.post(
+                f"{supabase_url}/functions/v1/pick-asesor",
+                headers={
+                    "Authorization": f"Bearer {supabase_key}",
+                    "Content-Type": "application/json",
+                },
+                json={"lead_id": lead_id, "proyecto": proyecto},
+            )
+            r.raise_for_status()
+            data = r.json()
+            logger.info(f"pick_asesor lead={lead_id}: {data}")
+            return data
+    except Exception as e:
+        logger.error(f"pick_asesor: {e}")
+        return {"asesor_id": None, "asesor_nombre": None}
+
+
+async def marcar_incontactable(lead_id: str, proyecto: str | None) -> bool:
+    """
+    Caso B del contrato Sofia ↔ leads-sucol: 48h sin respuesta o 3 intentos fallidos.
+
+    1. Llama a pick-asesor para obtener el asesor disponible.
+    2a. Si hay asesor → UPDATE leads (asesor_id + etapa_lead) → dispara trg_enqueue_e1b.
+    2b. Si no hay asesor → no toca leads, queda para asignación manual en el kanban.
+    3. Siempre → UPDATE sofia_leads SET etapa='incontactable'.
+
+    Retorna True si el UPDATE de leads se realizó, False si quedó pendiente de asignación manual.
+    """
+    if not _crm_disponible():
+        return False
+
+    data = await pick_asesor(lead_id, proyecto)
+    asesor_id = data.get("asesor_id")
+    asesor_nombre = data.get("asesor_nombre")
+
+    asignado = False
+    if asesor_id:
+        await actualizar_lead_por_id(lead_id, {
+            "asesor_id": asesor_id,
+            "asesor_responsable": asesor_nombre,
+            "etapa_lead": "LEAD NUEVO ASIGNADO",
+        })
+        logger.info(f"marcar_incontactable lead={lead_id}: asesor asignado={asesor_nombre} → trg_enqueue_e1b disparará")
+        asignado = True
+    else:
+        logger.info(f"marcar_incontactable lead={lead_id}: sin asesores disponibles — pendiente asignación manual")
+
+    # Siempre actualizar sofia_leads sin importar si se asignó asesor
+    try:
+        async with _crm_session() as session:
+            await session.execute(
+                text("""
+                    UPDATE sofia_leads SET etapa = 'incontactable', updated_at = now()
+                    WHERE lead_id = :lead_id
+                """),
+                {"lead_id": lead_id},
+            )
+            await session.commit()
+        logger.info(f"sofia_leads lead={lead_id} → etapa=incontactable")
+    except Exception as e:
+        logger.error(f"marcar_incontactable sofia_leads UPDATE: {e}")
+
+    return asignado

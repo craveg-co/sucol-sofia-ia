@@ -30,6 +30,7 @@ from agent.crm import (
     obtener_agendamientos_lead,
     obtener_asesor_de_lead,
     crear_o_actualizar_contacto_whatsapp,
+    marcar_incontactable,
 )
 
 load_dotenv()
@@ -176,12 +177,12 @@ async def debug_contexto(telefono: str):
     }
 
 
-class IniciarPayload(BaseModel):
+class LeadIdPayload(BaseModel):
     lead_id: str
 
 
 @app.post("/iniciar")
-async def iniciar_conversacion(payload: IniciarPayload):
+async def iniciar_conversacion(payload: LeadIdPayload):
     """
     Llamado desde el CRM cuando se asigna un lead a Sofía.
     Busca el teléfono del lead y dispara el primer mensaje proactivo.
@@ -230,6 +231,29 @@ async def iniciar_conversacion(payload: IniciarPayload):
 
     logger.info(f"Conversación iniciada con {tel_norm} — proyecto={proyecto_slug}")
     return {"status": "ok", "telefono": tel_norm, "proyecto": proyecto_slug}
+
+
+@app.post("/incontactable")
+async def marcar_lead_incontactable(payload: LeadIdPayload):
+    """
+    Caso B del contrato Sofia ↔ leads-sucol.
+    Llamado desde leads-sucol después de 48h sin respuesta o 3 intentos fallidos.
+    Llama a pick-asesor, hace los UPDATEs necesarios en leads + sofia_leads
+    y deja el lead listo para que trg_enqueue_e1b dispare (si hay asesor disponible).
+    """
+    lead = await obtener_lead_por_id(payload.lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead no encontrado")
+
+    proyecto = lead.get("proyecto")  # slug o nombre tal como está en leads
+    asignado = await marcar_incontactable(payload.lead_id, proyecto)
+
+    return {
+        "status": "ok",
+        "lead_id": payload.lead_id,
+        "asesor_asignado": asignado,
+        "nota": "trg_enqueue_e1b disparará en leads-sucol" if asignado else "sin asesores disponibles — pendiente asignación manual en kanban",
+    }
 
 
 @app.get("/webhook")
