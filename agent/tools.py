@@ -272,6 +272,75 @@ async def consultar_asesor_por_nombre(nombre_asesor: str) -> str:
     )
 
 
+async def _confirmar_cita_edge(
+    telefono: str,
+    nombre_cliente: str,
+    tipo_cita: str,
+    fecha_cita: str,
+    hora_cita: str,
+    resumen: str,
+) -> str:
+    supabase_url = os.getenv("SUPABASE_URL", "").rstrip("/")
+    supabase_key = os.getenv("SUPABASE_SERVICE_KEY", "")
+
+    if not supabase_url or not supabase_key:
+        logger.error("confirmar_cita: SUPABASE_URL / SUPABASE_SERVICE_KEY no configurados")
+        return "No pude agendar la cita en este momento. Por favor intenta de nuevo en unos minutos."
+
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            r = await client.post(
+                f"{supabase_url}/functions/v1/agendar-cita-sofia",
+                headers={
+                    "Authorization": f"Bearer {supabase_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "telefono": telefono,
+                    "nombre_cliente": nombre_cliente,
+                    "tipo_cita": tipo_cita,
+                    "fecha_cita": fecha_cita,
+                    "hora_cita": hora_cita,
+                    "resumen": resumen,
+                    "canal": "WhatsApp Sofia",
+                },
+            )
+            if r.status_code >= 300:
+                logger.error(f"confirmar_cita edge HTTP {r.status_code}: {r.text[:300]}")
+                return "No pude agendar la cita en este momento. Por favor intenta de nuevo en unos minutos."
+            data = r.json()
+    except Exception as e:
+        logger.error(f"confirmar_cita edge error: {e}")
+        return "No pude agendar la cita en este momento. Por favor intenta de nuevo en unos minutos."
+
+    if not data.get("ok"):
+        logger.error(f"confirmar_cita edge respuesta no OK: {data}")
+        return "No pude agendar la cita en este momento. Por favor intenta de nuevo en unos minutos."
+
+    cita = data.get("cita") or {}
+    asesor = data.get("asesor") or {}
+    lineas = [
+        "Cita agendada.",
+        "",
+        f"Cliente: {nombre_cliente}",
+        f"Tipo de cita: {cita.get('tipo') or tipo_cita}",
+        f"Fecha: {cita.get('fecha') or fecha_cita}",
+        f"Hora: {cita.get('hora') or hora_cita}",
+        "",
+        f"Asesor: {asesor.get('nombre') or 'Asesor Sucol'}",
+    ]
+    if asesor.get("telefono"):
+        lineas.append(f"WhatsApp asesor: {asesor['telefono']}")
+    if asesor.get("email"):
+        lineas.append(f"Email asesor: {asesor['email']}")
+    lineas.append("")
+    if data.get("duplicado"):
+        lineas.append("Ya existia una cita pendiente con esos mismos datos; te comparto la informacion registrada.")
+    else:
+        lineas.append("Tu asesor ya fue notificado.")
+    return "\n".join(lineas)
+
+
 async def confirmar_cita(
     telefono: str,
     nombre_cliente: str,
@@ -297,6 +366,15 @@ async def confirmar_cita(
         Mensaje de confirmación para transmitir al cliente
     """
     # ── Obtener o crear lead en tabla leads ───────────────────────────────────
+    return await _confirmar_cita_edge(
+        telefono=telefono,
+        nombre_cliente=nombre_cliente,
+        tipo_cita=tipo_cita,
+        fecha_cita=fecha_cita,
+        hora_cita=hora_cita,
+        resumen=resumen,
+    )
+
     lead = await obtener_lead(telefono)
     if not lead:
         logger.info(f"confirmar_cita: creando lead para {telefono}")
