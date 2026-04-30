@@ -12,17 +12,13 @@ import yaml
 import logging
 import httpx
 from datetime import datetime, timezone, timedelta
-from openai import AsyncOpenAI
+from anthropic import AsyncAnthropic
 from dotenv import load_dotenv
 
 load_dotenv()
 logger = logging.getLogger("agentkit")
 
-client = AsyncOpenAI(
-    api_key=os.getenv("XAI_API_KEY"),
-    base_url=os.getenv("XAI_BASE_URL", "https://api.x.ai/v1"),
-)
-_XAI_MODEL = os.getenv("XAI_MODEL", "grok-3-mini")
+client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 # ── Caché del prompt global ────────────────────────────────────────────────────
 _cache_global_prompt: str | None = None
