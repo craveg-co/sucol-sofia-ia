@@ -13,120 +13,123 @@ import logging
 import httpx
 import json
 from datetime import datetime, timezone, timedelta
-from openai import AsyncOpenAI
 from types import SimpleNamespace
 from dotenv import load_dotenv
 
 load_dotenv()
 logger = logging.getLogger("agentkit")
 
-_gemini = AsyncOpenAI(
-    api_key=os.getenv("GEMINI_API_KEY"),
-    base_url=os.getenv("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/"),
-)
 _GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+_GEMINI_BASE_URL = os.getenv("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta")
 
 
 class _GeminiCompatMessages:
-    def __init__(self, sdk: AsyncOpenAI):
-        self._sdk = sdk
-
     async def create(self, model: str, max_tokens: int, system: str, messages: list, tools: list | None = None):
-        chat_messages = [{"role": "system", "content": system}]
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise RuntimeError("GEMINI_API_KEY no configurada")
+
+        contents = []
         for message in messages:
             role = message.get("role")
             content = message.get("content")
             if isinstance(content, str):
-                chat_messages.append({"role": role, "content": content})
+                contents.append({
+                    "role": "model" if role == "assistant" else "user",
+                    "parts": [{"text": content}],
+                })
                 continue
             if role == "assistant" and isinstance(content, list):
-                tool_calls = []
-                text_content = ""
+                parts = []
                 for block in content:
                     if getattr(block, "type", None) == "text":
-                        text_content += getattr(block, "text", "")
+                        parts.append({"text": getattr(block, "text", "")})
                     elif getattr(block, "type", None) == "tool_use":
-                        tool_calls.append({
-                            "id": block.id,
-                            "type": "function",
-                            "function": {
+                        parts.append({
+                            "functionCall": {
                                 "name": block.name,
-                                "arguments": json.dumps(block.input, ensure_ascii=False),
-                            },
+                                "args": block.input,
+                            }
                         })
-                assistant_message = {"role": "assistant", "content": text_content}
-                if tool_calls:
-                    assistant_message["tool_calls"] = tool_calls
-                chat_messages.append(assistant_message)
+                contents.append({"role": "model", "parts": parts or [{"text": ""}]})
                 continue
             if role == "user" and isinstance(content, list):
                 for block in content:
                     if isinstance(block, dict) and block.get("type") == "tool_result":
-                        chat_messages.append({
-                            "role": "tool",
-                            "tool_call_id": block["tool_use_id"],
-                            "content": block["content"],
+                        contents.append({
+                            "role": "user",
+                            "parts": [{
+                                "functionResponse": {
+                                    "name": block["tool_use_id"].split(":", 1)[0],
+                                    "response": {"result": block["content"]},
+                                }
+                            }],
                         })
 
-        chat_tools = None
+        gemini_tools = None
         if tools:
-            chat_tools = [
-                {
-                    "type": "function",
-                    "function": {
+            gemini_tools = [{
+                "functionDeclarations": [
+                    {
                         "name": tool["name"],
                         "description": tool.get("description", ""),
                         "parameters": tool.get("input_schema", {"type": "object", "properties": {}}),
-                    },
-                }
-                for tool in tools
-            ]
+                    }
+                    for tool in tools
+                ]
+            }]
 
-        request = {
-            "model": _GEMINI_MODEL,
-            "max_tokens": max_tokens,
-            "messages": chat_messages,
+        payload = {
+            "systemInstruction": {"parts": [{"text": system}]},
+            "contents": contents,
+            "generationConfig": {"maxOutputTokens": max_tokens},
         }
-        if chat_tools:
-            request["tools"] = chat_tools
-            request["tool_choice"] = "auto"
-        response = await self._sdk.chat.completions.create(**request)
-        response_message = response.choices[0].message
+        if gemini_tools:
+            payload["tools"] = gemini_tools
+
+        url = f"{_GEMINI_BASE_URL}/models/{_GEMINI_MODEL}:generateContent"
+        async with httpx.AsyncClient(timeout=30) as http:
+            response = await http.post(url, params={"key": api_key}, json=payload)
+            response.raise_for_status()
+            data = response.json()
+
+        parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+        usage_data = data.get("usageMetadata", {})
         usage = SimpleNamespace(
-            input_tokens=getattr(response.usage, "prompt_tokens", 0) if response.usage else 0,
-            output_tokens=getattr(response.usage, "completion_tokens", 0) if response.usage else 0,
+            input_tokens=usage_data.get("promptTokenCount", 0),
+            output_tokens=usage_data.get("candidatesTokenCount", 0),
         )
 
-        if response_message.tool_calls:
+        function_calls = [part["functionCall"] for part in parts if "functionCall" in part]
+        if function_calls:
             content = []
-            if response_message.content:
-                content.append(SimpleNamespace(type="text", text=response_message.content))
-            for tool_call in response_message.tool_calls:
-                try:
-                    tool_input = json.loads(tool_call.function.arguments or "{}")
-                except Exception:
-                    tool_input = {}
+            for part in parts:
+                if "text" in part:
+                    content.append(SimpleNamespace(type="text", text=part["text"]))
+            for idx, function_call in enumerate(function_calls):
+                name = function_call.get("name", "")
                 content.append(SimpleNamespace(
                     type="tool_use",
-                    id=tool_call.id,
-                    name=tool_call.function.name,
-                    input=tool_input,
+                    id=f"{name}:{idx}",
+                    name=name,
+                    input=function_call.get("args", {}),
                 ))
             return SimpleNamespace(stop_reason="tool_use", content=content, usage=usage)
 
+        text = "".join(part.get("text", "") for part in parts)
         return SimpleNamespace(
             stop_reason="end_turn",
-            content=[SimpleNamespace(type="text", text=response_message.content or "")],
+            content=[SimpleNamespace(type="text", text=text)],
             usage=usage,
         )
 
 
 class _GeminiCompatClient:
-    def __init__(self, sdk: AsyncOpenAI):
-        self.messages = _GeminiCompatMessages(sdk)
+    def __init__(self):
+        self.messages = _GeminiCompatMessages()
 
 
-client = _GeminiCompatClient(_gemini)
+client = _GeminiCompatClient()
 
 # ── Caché del prompt global ────────────────────────────────────────────────────
 _cache_global_prompt: str | None = None
