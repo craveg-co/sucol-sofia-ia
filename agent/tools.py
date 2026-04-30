@@ -18,6 +18,7 @@ from email.mime.multipart import MIMEMultipart
 from agent.crm import (
     crear_agendamiento, crear_lead, crear_o_actualizar_sofia_lead,
     obtener_lead, obtener_asesor_de_lead, obtener_asesor_por_user_id,
+    obtener_asesor_por_nombre,
     actualizar_lead_crm, actualizar_lead_por_id,
     _actualizar_sofia_leads_etapa,
 )
@@ -254,6 +255,21 @@ async def escalar_a_asesor(
 
     logger.warning(f"escalar_a_asesor: no se pudo notificar al asesor {asesor_telefono}")
     return f"Entendido, {nombre_cliente}. Un asesor de Sucol se pondrá en contacto contigo pronto. ¿Hay algo más en lo que te pueda ayudar?"
+
+
+async def consultar_asesor_por_nombre(nombre_asesor: str) -> str:
+    """Consulta asesores activos por nombre parcial y retorna datos de contacto."""
+    asesor = await obtener_asesor_por_nombre(nombre_asesor)
+    if not asesor:
+        return f"No encontré un asesor activo llamado {nombre_asesor} en el CRM."
+
+    telefono = asesor.get("telefono") or "no registrado"
+    email = asesor.get("email") or "no registrado"
+    return (
+        f"Asesor encontrado: {asesor.get('nombre', nombre_asesor)}\n"
+        f"Teléfono WhatsApp: {telefono}\n"
+        f"Email: {email}"
+    )
 
 
 async def confirmar_cita(

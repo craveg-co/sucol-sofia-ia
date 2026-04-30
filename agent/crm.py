@@ -457,7 +457,7 @@ async def obtener_lotes_disponibles(proyecto_slug: str) -> list[dict]:
 async def obtener_asesor_por_nombre(nombre: str) -> dict | None:
     """
     Busca un asesor activo por nombre con matching flexible:
-    verifica que todas las palabras del nombre del asesor aparezcan en el input.
+    verifica coincidencias parciales entre el input y el nombre del asesor.
     Ej: "Fabio Cardona" coincide con "Fabio Alonso Cardona".
     """
     if not _crm_disponible():
@@ -469,10 +469,13 @@ async def obtener_asesor_por_nombre(nombre: str) -> dict | None:
             )
             asesores = [dict(row) for row in result.mappings().all()]
 
-        nombre_lower = nombre.lower()
+        palabras_input = [p for p in nombre.lower().split() if len(p) >= 3]
+        if not palabras_input:
+            return None
+
         for asesor in asesores:
             palabras = asesor["nombre"].lower().split()
-            if all(p in nombre_lower for p in palabras):
+            if all(any(p in palabra or palabra in p for palabra in palabras) for p in palabras_input):
                 logger.info(f"CRM asesor encontrado: {asesor['nombre']} ({asesor['telefono']})")
                 return asesor
 

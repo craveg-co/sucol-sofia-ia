@@ -422,6 +422,25 @@ _TOOL_ESCALAR_ASESOR = {
     },
 }
 
+_TOOL_CONSULTAR_ASESOR = {
+    "name": "consultar_asesor_por_nombre",
+    "description": (
+        "Consulta en el CRM el teléfono y email de un asesor activo por nombre parcial. "
+        "Úsalo cuando el cliente pregunte por el número, WhatsApp, teléfono, correo o contacto "
+        "de un asesor específico, por ejemplo 'Fabio', 'Luz Aide' o 'Kelvin'."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "nombre_asesor": {
+                "type": "string",
+                "description": "Nombre o parte del nombre del asesor que el cliente está consultando",
+            },
+        },
+        "required": ["nombre_asesor"],
+    },
+}
+
 _TOOL_CALIFICAR_SIN_VISITA = {
     "name": "calificar_lead_sin_visita",
     "description": (
@@ -501,6 +520,8 @@ def _reglas_finales(asesor: dict | None) -> str:
         "sistema que no sea el CRM de Sucol. Esos sistemas ya no existen.",
         "- NO digas que 'no tienes acceso al CRM' ni que 'no puedes consultar datos'. "
         "Toda la información del cliente y del asesor ya está en tu contexto.",
+        "- Si el cliente pide el telefono, WhatsApp, correo o contacto de un asesor por nombre "
+        "especifico, usa la herramienta consultar_asesor_por_nombre antes de responder.",
         "- La fecha de hoy es: " + _fecha_colombia(),
         "- Usa esa fecha exacta siempre que necesites referenciar el día de hoy.",
     ]
@@ -528,7 +549,13 @@ async def generar_respuesta_con_tools(
     el resultado antes de obtener el mensaje final para el cliente.
     Retorna solo el texto de respuesta para el cliente.
     """
-    from agent.tools import confirmar_cita, escalar_a_asesor, notificar_area_por_correo, calificar_lead_sin_visita  # import local para evitar ciclos
+    from agent.tools import (
+        confirmar_cita,
+        escalar_a_asesor,
+        notificar_area_por_correo,
+        calificar_lead_sin_visita,
+        consultar_asesor_por_nombre,
+    )  # import local para evitar ciclos
 
     # Señal especial: el CRM solicita el primer mensaje proactivo
     es_inicio = mensaje == "__INICIAR__"
@@ -575,7 +602,7 @@ async def generar_respuesta_con_tools(
             max_tokens=1024,
             system=prompt_final,
             messages=mensajes,
-            tools=[_TOOL_CONFIRMAR_CITA, _TOOL_ESCALAR_ASESOR, _TOOL_NOTIFICAR_AREA, _TOOL_CALIFICAR_SIN_VISITA],
+            tools=[_TOOL_CONFIRMAR_CITA, _TOOL_ESCALAR_ASESOR, _TOOL_CONSULTAR_ASESOR, _TOOL_NOTIFICAR_AREA, _TOOL_CALIFICAR_SIN_VISITA],
         )
 
         if response.stop_reason == "tool_use":
@@ -595,6 +622,12 @@ async def generar_respuesta_con_tools(
                     except Exception as e:
                         logger.error(f"Error ejecutando escalar_a_asesor: {e}")
                         resultado_tool = "Hubo un problema al contactar al asesor. Por favor intenta de nuevo."
+                elif tu.name == "consultar_asesor_por_nombre":
+                    try:
+                        resultado_tool = await consultar_asesor_por_nombre(**tu.input)
+                    except Exception as e:
+                        logger.error(f"Error ejecutando consultar_asesor_por_nombre: {e}")
+                        resultado_tool = "No pude consultar ese asesor en este momento."
                 elif tu.name == "notificar_area_por_correo":
                     try:
                         resultado_tool = await notificar_area_por_correo(**tu.input)
@@ -626,7 +659,7 @@ async def generar_respuesta_con_tools(
                 max_tokens=1024,
                 system=prompt_final,
                 messages=mensajes_con_resultado,
-                tools=[_TOOL_CONFIRMAR_CITA, _TOOL_ESCALAR_ASESOR, _TOOL_NOTIFICAR_AREA, _TOOL_CALIFICAR_SIN_VISITA],
+                tools=[_TOOL_CONFIRMAR_CITA, _TOOL_ESCALAR_ASESOR, _TOOL_CONSULTAR_ASESOR, _TOOL_NOTIFICAR_AREA, _TOOL_CALIFICAR_SIN_VISITA],
             )
             respuesta = response2.content[0].text
             logger.info(
