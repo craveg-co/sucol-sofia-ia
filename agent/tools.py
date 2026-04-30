@@ -333,6 +333,30 @@ async def confirmar_cita(
         or "Asesor Sucol"
     )
     asesor_telefono = asesor.get("telefono") if asesor else ""
+    asesor_email = asesor.get("email") if asesor else ""
+
+    def _mensaje_confirmacion_cita(notificado: bool) -> str:
+        lineas = [
+            "Cita agendada.",
+            "",
+            f"Cliente: {nombre_cliente}",
+            f"Tipo de cita: {tipo_cita}",
+            f"Fecha: {fecha_cita}",
+            f"Hora: {hora_cita}",
+            "",
+            f"Asesor: {asesor_nombre}",
+        ]
+        if asesor_telefono:
+            lineas.append(f"WhatsApp asesor: {asesor_telefono}")
+        if asesor_email:
+            lineas.append(f"Email asesor: {asesor_email}")
+        lineas.append("")
+        lineas.append(
+            "Tu asesor ya fue notificado."
+            if notificado
+            else "Un asesor se pondrá en contacto contigo."
+        )
+        return "\n".join(lineas)
 
     # ── Guardar agendamiento en Supabase ──────────────────────────────────────
     agendamiento = None
@@ -385,13 +409,13 @@ async def confirmar_cita(
             })
             if r.status_code < 300:
                 logger.info(f"Notificación enviada a n8n para {asesor_nombre} ({asesor_telefono})")
-                return f"Cita agendada para el {fecha_cita} a las {hora_cita}. Tu asesor fue notificado."
+                return _mensaje_confirmacion_cita(notificado=True)
             else:
                 logger.warning(f"n8n webhook respondió {r.status_code}: {r.text[:120]}")
     except Exception as e:
         logger.error(f"confirmar_cita: error llamando webhook n8n: {e}")
 
-    return f"Cita agendada para el {fecha_cita} a las {hora_cita}. Un asesor se pondrá en contacto contigo."
+    return _mensaje_confirmacion_cita(notificado=False)
 
 
 async def calificar_lead_sin_visita(

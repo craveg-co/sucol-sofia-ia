@@ -472,7 +472,9 @@ _TOOL_CONFIRMAR_CITA = {
     "name": "confirmar_cita",
     "description": (
         "Agenda una cita en el CRM y notifica al asesor por WhatsApp cuando el cliente "
-        "confirma fecha, hora y tipo de cita."
+        "confirma fecha, hora y tipo de cita. La respuesta de esta herramienta contiene "
+        "los datos completos de la cita y del asesor; al responder al cliente, conserva "
+        "esos datos sin omitir el teléfono del asesor."
     ),
     "input_schema": {
         "type": "object",
