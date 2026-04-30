@@ -293,6 +293,7 @@ async def _confirmar_cita_edge(
                 f"{supabase_url}/functions/v1/agendar-cita-sofia",
                 headers={
                     "Authorization": f"Bearer {supabase_key}",
+                    "apikey": supabase_key,
                     "Content-Type": "application/json",
                 },
                 json={
