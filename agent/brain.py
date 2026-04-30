@@ -1,4 +1,4 @@
-# agent/brain.py — Cerebro de Sofía: conexión con Claude API
+# agent/brain.py — Cerebro de Sofía: conexión con Gemini API
 # Generado por AgentKit para Sucol Soluciones Urbanísticas
 
 """
@@ -11,14 +11,122 @@ import time
 import yaml
 import logging
 import httpx
+import json
 from datetime import datetime, timezone, timedelta
-from anthropic import AsyncAnthropic
+from openai import AsyncOpenAI
+from types import SimpleNamespace
 from dotenv import load_dotenv
 
 load_dotenv()
 logger = logging.getLogger("agentkit")
 
-client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+_gemini = AsyncOpenAI(
+    api_key=os.getenv("GEMINI_API_KEY"),
+    base_url=os.getenv("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/"),
+)
+_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
+
+class _GeminiCompatMessages:
+    def __init__(self, sdk: AsyncOpenAI):
+        self._sdk = sdk
+
+    async def create(self, model: str, max_tokens: int, system: str, messages: list, tools: list | None = None):
+        chat_messages = [{"role": "system", "content": system}]
+        for message in messages:
+            role = message.get("role")
+            content = message.get("content")
+            if isinstance(content, str):
+                chat_messages.append({"role": role, "content": content})
+                continue
+            if role == "assistant" and isinstance(content, list):
+                tool_calls = []
+                text_content = ""
+                for block in content:
+                    if getattr(block, "type", None) == "text":
+                        text_content += getattr(block, "text", "")
+                    elif getattr(block, "type", None) == "tool_use":
+                        tool_calls.append({
+                            "id": block.id,
+                            "type": "function",
+                            "function": {
+                                "name": block.name,
+                                "arguments": json.dumps(block.input, ensure_ascii=False),
+                            },
+                        })
+                assistant_message = {"role": "assistant", "content": text_content}
+                if tool_calls:
+                    assistant_message["tool_calls"] = tool_calls
+                chat_messages.append(assistant_message)
+                continue
+            if role == "user" and isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "tool_result":
+                        chat_messages.append({
+                            "role": "tool",
+                            "tool_call_id": block["tool_use_id"],
+                            "content": block["content"],
+                        })
+
+        chat_tools = None
+        if tools:
+            chat_tools = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool["name"],
+                        "description": tool.get("description", ""),
+                        "parameters": tool.get("input_schema", {"type": "object", "properties": {}}),
+                    },
+                }
+                for tool in tools
+            ]
+
+        request = {
+            "model": _GEMINI_MODEL,
+            "max_tokens": max_tokens,
+            "messages": chat_messages,
+        }
+        if chat_tools:
+            request["tools"] = chat_tools
+            request["tool_choice"] = "auto"
+        response = await self._sdk.chat.completions.create(**request)
+        response_message = response.choices[0].message
+        usage = SimpleNamespace(
+            input_tokens=getattr(response.usage, "prompt_tokens", 0) if response.usage else 0,
+            output_tokens=getattr(response.usage, "completion_tokens", 0) if response.usage else 0,
+        )
+
+        if response_message.tool_calls:
+            content = []
+            if response_message.content:
+                content.append(SimpleNamespace(type="text", text=response_message.content))
+            for tool_call in response_message.tool_calls:
+                try:
+                    tool_input = json.loads(tool_call.function.arguments or "{}")
+                except Exception:
+                    tool_input = {}
+                content.append(SimpleNamespace(
+                    type="tool_use",
+                    id=tool_call.id,
+                    name=tool_call.function.name,
+                    input=tool_input,
+                ))
+            return SimpleNamespace(stop_reason="tool_use", content=content, usage=usage)
+
+        return SimpleNamespace(
+            stop_reason="end_turn",
+            content=[SimpleNamespace(type="text", text=response_message.content or "")],
+            usage=usage,
+        )
+
+
+class _GeminiCompatClient:
+    def __init__(self, sdk: AsyncOpenAI):
+        self.messages = _GeminiCompatMessages(sdk)
+
+
+client = _GeminiCompatClient(_gemini)
 
 # ── Caché del prompt global ────────────────────────────────────────────────────
 _cache_global_prompt: str | None = None
@@ -413,7 +521,7 @@ async def generar_respuesta_con_tools(
 ) -> str:
     """
     Como generar_respuesta() pero con soporte de tool_use.
-    Cuando Claude invoca confirmar_cita, ejecuta la herramienta real y le devuelve
+    Cuando Gemini invoca confirmar_cita, ejecuta la herramienta real y le devuelve
     el resultado antes de obtener el mensaje final para el cliente.
     Retorna solo el texto de respuesta para el cliente.
     """
@@ -460,7 +568,7 @@ async def generar_respuesta_con_tools(
 
     try:
         response = await client.messages.create(
-            model="claude-sonnet-4-6",
+            model=_GEMINI_MODEL,
             max_tokens=1024,
             system=prompt_final,
             messages=mensajes,
@@ -511,7 +619,7 @@ async def generar_respuesta_con_tools(
             ]
 
             response2 = await client.messages.create(
-                model="claude-sonnet-4-6",
+                model=_GEMINI_MODEL,
                 max_tokens=1024,
                 system=prompt_final,
                 messages=mensajes_con_resultado,
@@ -530,7 +638,7 @@ async def generar_respuesta_con_tools(
         return respuesta
 
     except Exception as e:
-        logger.error(f"Error Claude API (con tools): {e}")
+        logger.error(f"Error Gemini API (con tools): {e}")
         return _mensaje_error()
 
 
@@ -544,7 +652,7 @@ async def generar_respuesta(
     agendamientos: list[dict] | None = None,
 ) -> str:
     """
-    Genera una respuesta usando Claude API (claude-sonnet-4-6).
+    Genera una respuesta usando Gemini API.
 
     Args:
         mensaje: El mensaje nuevo del cliente
@@ -579,7 +687,7 @@ async def generar_respuesta(
 
     try:
         response = await client.messages.create(
-            model="claude-sonnet-4-6",
+            model=_GEMINI_MODEL,
             max_tokens=1024,
             system=prompt_final,
             messages=mensajes,
@@ -589,5 +697,5 @@ async def generar_respuesta(
         return respuesta
 
     except Exception as e:
-        logger.error(f"Error Claude API: {e}")
+        logger.error(f"Error Gemini API: {e}")
         return _mensaje_error()
