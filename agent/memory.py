@@ -116,10 +116,73 @@ async def guardar_mensaje(telefono: str, role: str, content: str):
     asyncio.create_task(_sync_a_supabase(telefono, role, content, ts))
 
 
-async def obtener_historial(telefono: str, limite: int = 30) -> list[dict]:
+def _variantes_telefono_memoria(telefono: str) -> list[str]:
+    """Genera variantes para encontrar historial aunque cambie el formato."""
+    t = telefono.strip().replace(" ", "").replace("-", "")
+    variantes = {t}
+    if not t.startswith("+"):
+        variantes.add("+" + t)
+    if t.startswith("57") and len(t) == 12:
+        variantes.add(t[2:])
+    if t.startswith("+57") and len(t) == 13:
+        variantes.add(t[3:])
+    return list(variantes)
+
+
+async def _obtener_historial_supabase(telefono: str, limite: int) -> list[dict]:
+    """Lee historial desde conversaciones_sofia en Supabase."""
+    if not _SUPABASE_URL or not _SUPABASE_SERVICE_KEY:
+        return []
+
+    variantes = _variantes_telefono_memoria(telefono)
+    filtro_or = ",".join(f"telefono.eq.{v}" for v in variantes)
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                f"{_SUPABASE_URL}/rest/v1/conversaciones_sofia",
+                headers={
+                    "apikey": _SUPABASE_SERVICE_KEY,
+                    "Authorization": f"Bearer {_SUPABASE_SERVICE_KEY}",
+                },
+                params={
+                    "select": "role,content,timestamp,created_at",
+                    "or": f"({filtro_or})",
+                    "order": "timestamp.desc.nullslast,created_at.desc",
+                    "limit": str(limite),
+                },
+            )
+            if resp.status_code != 200:
+                logger.warning(f"[Supabase historial] HTTP {resp.status_code}: {resp.text[:120]}")
+                return []
+            rows = resp.json()
+    except Exception as exc:
+        logger.warning(f"[Supabase historial] Error al leer historial de {telefono}: {exc}")
+        return []
+
+    rows.reverse()
+    historial = []
+    for row in rows:
+        role = row.get("role")
+        content = row.get("content")
+        if role in ("user", "assistant") and content:
+            historial.append({"role": role, "content": content})
+
+    if historial:
+        logger.info(f"[Supabase historial] {telefono}: {len(historial)} mensajes recuperados")
+    return historial
+
+
+async def obtener_historial(telefono: str, limite: int | None = None) -> list[dict]:
     """
     Recupera los últimos N mensajes de una conversación.
     """
+    limite = limite or int(os.getenv("HISTORIAL_LIMITE", "100"))
+
+    historial_supabase = await _obtener_historial_supabase(telefono, limite)
+    if historial_supabase:
+        return historial_supabase
+
     async with async_session() as session:
         query = (
             select(Mensaje)
