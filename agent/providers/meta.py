@@ -43,11 +43,14 @@ class ProveedorMeta(ProveedorWhatsApp):
         flow_name = nfm_reply.get("name") or interactive.get("type") or "nfm_reply"
         answered_at = datetime.now(timezone.utc).isoformat()
 
+        if not flow_token:
+            logger.warning(f"advisor_surveys: respuesta Flow sin flow_token para {telefono}")
+            return
+
         payload = {
             "telefono_cliente": telefono,
             "wamid": msg.get("id", ""),
             "flow_name": flow_name,
-            "flow_token": flow_token,
             "status": "answered",
             "answered_at": answered_at,
             "response_payload": {
@@ -63,23 +66,20 @@ class ProveedorMeta(ProveedorWhatsApp):
                     "apikey": self.supabase_key,
                     "Authorization": f"Bearer {self.supabase_key}",
                     "Content-Type": "application/json",
-                    "Prefer": "return=minimal",
+                    "Prefer": "return=representation",
                 }
-                if flow_token:
-                    resp = await client.patch(
-                        f"{self.supabase_url}/rest/v1/advisor_surveys",
-                        headers=headers,
-                        params={"flow_token": f"eq.{flow_token}"},
-                        json={k: v for k, v in payload.items() if v is not None},
-                    )
-                else:
-                    resp = await client.post(
-                        f"{self.supabase_url}/rest/v1/advisor_surveys",
-                        headers=headers,
-                        json={k: v for k, v in payload.items() if v is not None},
-                    )
-                if resp.status_code not in (200, 201, 204):
-                    logger.error(f"advisor_surveys upsert HTTP {resp.status_code}: {resp.text[:300]}")
+                resp = await client.patch(
+                    f"{self.supabase_url}/rest/v1/advisor_surveys",
+                    headers=headers,
+                    params={"flow_token": f"eq.{flow_token}", "select": "id"},
+                    json={k: v for k, v in payload.items() if v is not None},
+                )
+                if resp.status_code != 200:
+                    logger.error(f"advisor_surveys update HTTP {resp.status_code}: {resp.text[:300]}")
+                    return
+                rows = resp.json()
+                if not rows:
+                    logger.warning(f"advisor_surveys: no existe registro previo para flow_token={flow_token}")
                     return
                 logger.info(f"advisor_surveys: respuesta Flow guardada para {telefono}")
         except Exception as e:
