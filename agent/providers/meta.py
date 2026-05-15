@@ -5,6 +5,7 @@ import os
 import logging
 import httpx
 import json
+from datetime import datetime, timezone
 from fastapi import Request
 from agent.providers.base import ProveedorWhatsApp, MensajeEntrante
 
@@ -37,31 +38,50 @@ class ProveedorMeta(ProveedorWhatsApp):
         except Exception:
             response_json = {"raw": response_raw}
 
+        telefono = "+" + msg.get("from", "") if not msg.get("from", "").startswith("+") else msg.get("from", "")
+        flow_token = response_json.get("flow_token") if isinstance(response_json, dict) else None
+        flow_name = nfm_reply.get("name") or interactive.get("type") or "nfm_reply"
+        answered_at = datetime.now(timezone.utc).isoformat()
+
         payload = {
-            "telefono": "+" + msg.get("from", "") if not msg.get("from", "").startswith("+") else msg.get("from", ""),
-            "message_id": msg.get("id", ""),
-            "flow_name": nfm_reply.get("name") or interactive.get("type") or "nfm_reply",
-            "response_json": response_json,
-            "raw_payload": msg,
-            "timestamp": int(msg.get("timestamp", 0) or 0),
+            "telefono_cliente": telefono,
+            "wamid": msg.get("id", ""),
+            "flow_name": flow_name,
+            "flow_token": flow_token,
+            "status": "answered",
+            "answered_at": answered_at,
+            "response_payload": {
+                "response": response_json,
+                "raw_message": msg,
+            },
+            "last_error": None,
         }
 
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.post(
-                    f"{self.supabase_url}/rest/v1/advisor_surveys",
-                    headers={
-                        "apikey": self.supabase_key,
-                        "Authorization": f"Bearer {self.supabase_key}",
-                        "Content-Type": "application/json",
-                        "Prefer": "return=minimal",
-                    },
-                    json=payload,
-                )
-                if resp.status_code not in (200, 201):
-                    logger.error(f"advisor_surveys insert HTTP {resp.status_code}: {resp.text[:300]}")
+                headers = {
+                    "apikey": self.supabase_key,
+                    "Authorization": f"Bearer {self.supabase_key}",
+                    "Content-Type": "application/json",
+                    "Prefer": "return=minimal",
+                }
+                if flow_token:
+                    resp = await client.patch(
+                        f"{self.supabase_url}/rest/v1/advisor_surveys",
+                        headers=headers,
+                        params={"flow_token": f"eq.{flow_token}"},
+                        json={k: v for k, v in payload.items() if v is not None},
+                    )
+                else:
+                    resp = await client.post(
+                        f"{self.supabase_url}/rest/v1/advisor_surveys",
+                        headers=headers,
+                        json={k: v for k, v in payload.items() if v is not None},
+                    )
+                if resp.status_code not in (200, 201, 204):
+                    logger.error(f"advisor_surveys upsert HTTP {resp.status_code}: {resp.text[:300]}")
                     return
-                logger.info(f"advisor_surveys: respuesta Flow guardada para {payload['telefono']}")
+                logger.info(f"advisor_surveys: respuesta Flow guardada para {telefono}")
         except Exception as e:
             logger.error(f"advisor_surveys: error guardando respuesta Flow: {e}")
 
