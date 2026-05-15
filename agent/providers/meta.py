@@ -4,6 +4,7 @@
 import os
 import logging
 import httpx
+import json
 from fastapi import Request
 from agent.providers.base import ProveedorWhatsApp, MensajeEntrante
 
@@ -19,6 +20,50 @@ class ProveedorMeta(ProveedorWhatsApp):
         self.notify_phone_number_id = os.getenv("META_NOTIFY_PHONE_NUMBER_ID", self.phone_number_id)
         self.verify_token = os.getenv("META_VERIFY_TOKEN", "sucol-sofia")
         self.api_version = "v21.0"
+        self.supabase_url = os.getenv("SUPABASE_URL", "").rstrip("/")
+        self.supabase_key = os.getenv("SUPABASE_SERVICE_KEY", "")
+
+    async def _guardar_advisor_survey(self, msg: dict) -> None:
+        """Guarda respuestas de WhatsApp Flows en public.advisor_surveys."""
+        if not self.supabase_url or not self.supabase_key:
+            logger.warning("advisor_surveys: SUPABASE_URL / SUPABASE_SERVICE_KEY no configurados")
+            return
+
+        interactive = msg.get("interactive", {})
+        nfm_reply = interactive.get("nfm_reply", {})
+        response_raw = nfm_reply.get("response_json") or "{}"
+        try:
+            response_json = json.loads(response_raw) if isinstance(response_raw, str) else response_raw
+        except Exception:
+            response_json = {"raw": response_raw}
+
+        payload = {
+            "telefono": "+" + msg.get("from", "") if not msg.get("from", "").startswith("+") else msg.get("from", ""),
+            "message_id": msg.get("id", ""),
+            "flow_name": nfm_reply.get("name") or interactive.get("type") or "nfm_reply",
+            "response_json": response_json,
+            "raw_payload": msg,
+            "timestamp": int(msg.get("timestamp", 0) or 0),
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.post(
+                    f"{self.supabase_url}/rest/v1/advisor_surveys",
+                    headers={
+                        "apikey": self.supabase_key,
+                        "Authorization": f"Bearer {self.supabase_key}",
+                        "Content-Type": "application/json",
+                        "Prefer": "return=minimal",
+                    },
+                    json=payload,
+                )
+                if resp.status_code not in (200, 201):
+                    logger.error(f"advisor_surveys insert HTTP {resp.status_code}: {resp.text[:300]}")
+                    return
+                logger.info(f"advisor_surveys: respuesta Flow guardada para {payload['telefono']}")
+        except Exception as e:
+            logger.error(f"advisor_surveys: error guardando respuesta Flow: {e}")
 
     async def validar_webhook(self, request: Request) -> dict | int | None:
         """Meta requiere verificación GET con hub.verify_token."""
@@ -45,6 +90,10 @@ class ProveedorMeta(ProveedorWhatsApp):
                 numero_bot = metadata.get("display_phone_number", "")
                 phone_number_id = metadata.get("phone_number_id", "")
                 for msg in value.get("messages", []):
+                    if msg.get("type") == "interactive" and msg.get("interactive", {}).get("type") == "nfm_reply":
+                        await self._guardar_advisor_survey(msg)
+                        continue
+
                     if msg.get("type") != "text":
                         continue
                     remitente = msg.get("from", "")
