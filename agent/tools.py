@@ -31,7 +31,7 @@ _SES_PORT = int(os.getenv("SES_SMTP_PORT", "587"))
 _SES_USER = os.getenv("SES_SMTP_USER", "")
 _SES_PASS = os.getenv("SES_SMTP_PASSWORD", "")
 _SES_FROM = os.getenv("SES_FROM_EMAIL", "sofia@sucol.co")
-_EMAIL_CC  = "craveg@gmail.com"
+_EMAIL_CC  = ["craveg@gmail.com", "juperez@sucol.co"]
 
 # Destinatarios por área
 _AREAS_EMAIL = {
@@ -49,7 +49,7 @@ async def _enviar_email(destinatario: str, asunto: str, cuerpo: str) -> bool:
         msg["Subject"] = asunto
         msg["From"]    = _SES_FROM
         msg["To"]      = destinatario
-        msg["Cc"]      = _EMAIL_CC
+        msg["Cc"]      = ", ".join(_EMAIL_CC)
         msg.attach(MIMEText(cuerpo, "plain", "utf-8"))
 
         await aiosmtplib.send(
@@ -59,9 +59,9 @@ async def _enviar_email(destinatario: str, asunto: str, cuerpo: str) -> bool:
             username=_SES_USER,
             password=_SES_PASS,
             start_tls=True,
-            recipients=[destinatario, _EMAIL_CC],
+            recipients=[destinatario] + _EMAIL_CC,
         )
-        logger.info(f"Correo enviado a {destinatario} (CC: {_EMAIL_CC}) — {asunto}")
+        logger.info(f"Correo enviado a {destinatario} (CC: {', '.join(_EMAIL_CC)}) — {asunto}")
         return True
     except Exception as e:
         logger.error(f"Error enviando correo a {destinatario}: {e}")
