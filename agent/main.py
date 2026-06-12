@@ -199,7 +199,6 @@ async def iniciar_conversacion(payload: LeadIdPayload):
     tel_norm = "+" + telefono if not telefono.startswith("+") else telefono
 
     proyecto = await _detectar_proyecto(tel_norm, "")
-    sistema_prompt = proyecto.get("system_prompt") if proyecto else None
     proyecto_slug = proyecto.get("slug") if proyecto else None
     lotes = await _gather_uno(obtener_lotes_disponibles(proyecto_slug)) if proyecto_slug else []
     asesor = await obtener_asesor_de_lead(tel_norm) if lead else None
@@ -208,12 +207,12 @@ async def iniciar_conversacion(payload: LeadIdPayload):
         respuesta = await generar_respuesta_con_tools(
             mensaje="__INICIAR__",
             historial=[],
-            sistema_prompt=sistema_prompt,
             contexto_lead=lead,
             lotes_disponibles=lotes,
             telefono=tel_norm,
             asesor=asesor,
             agendamientos=[],
+            proyecto_slug=proyecto_slug,
         )
     except Exception as e:
         logger.error(f"Error generando mensaje inicial para {tel_norm}: {e}")
@@ -307,11 +306,8 @@ async def webhook_handler(request: Request):
             proyecto_slug = proyecto.get("slug") if proyecto else None
             lotes = await _gather_uno(obtener_lotes_disponibles(proyecto_slug)) if proyecto_slug else []
 
-            sistema_prompt = proyecto.get("system_prompt") if proyecto else None
-
             logger.info(
                 f"Contexto {telefono} → proyecto={proyecto_slug or 'ninguno'} "
-                f"| prompt={'sí' if sistema_prompt else 'NULL/vacío'} "
                 f"| lead={'sí' if lead else 'no'} "
                 f"| lotes={len(lotes)}"
             )
@@ -321,12 +317,12 @@ async def webhook_handler(request: Request):
                 respuesta = await generar_respuesta_con_tools(
                     mensaje=msg.texto,
                     historial=historial,
-                    sistema_prompt=sistema_prompt,
                     contexto_lead=lead,
                     lotes_disponibles=lotes,
                     telefono=telefono,
                     asesor=asesor,
                     agendamientos=agendamientos,
+                    proyecto_slug=proyecto_slug,
                 )
             except Exception as e:
                 logger.error(f"Error generando respuesta para {telefono}: {e}")

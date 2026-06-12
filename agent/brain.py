@@ -7,11 +7,9 @@ y un prompt genérico de bienvenida cuando el cliente aún no tiene proyecto asi
 """
 
 import os
-import time
 import yaml
 import logging
 import httpx
-import json
 from datetime import datetime, timezone, timedelta
 from types import SimpleNamespace
 from dotenv import load_dotenv
@@ -131,82 +129,52 @@ class _GeminiCompatClient:
 
 client = _GeminiCompatClient()
 
-# ── Caché del prompt global ────────────────────────────────────────────────────
-_cache_global_prompt: str | None = None
-_cache_timestamp: float = 0.0
-_CACHE_TTL = 300  # 5 minutos
+_KNOWLEDGE_DIR = "knowledge"
 
 
-async def _obtener_prompt_global() -> str:
+def _cargar_knowledge(proyecto_slug: str | None = None) -> str:
     """
-    Lee el prompt global configurado por el admin desde sofia_config en Supabase.
-    Usa caché de 5 minutos para no consultar en cada mensaje.
-    Retorna "" ante cualquier error o si el valor está vacío.
+    Carga el conocimiento comercial en dos capas:
+    1. knowledge/global.md            — siempre (empresa, directorio, directrices)
+    2. knowledge/proyectos/[slug].md  — solo cuando se conoce el proyecto del lead
+
+    El slug se normaliza a minúsculas con guion_bajo para buscar el archivo.
+    Si no se encuentra el archivo del proyecto, solo se usa global.md.
     """
-    global _cache_global_prompt, _cache_timestamp
+    partes = []
 
-    ahora = time.monotonic()
-    if _cache_global_prompt is not None and (ahora - _cache_timestamp) < _CACHE_TTL:
-        return _cache_global_prompt
+    # Capa 1: conocimiento global (siempre)
+    ruta_global = os.path.join(_KNOWLEDGE_DIR, "global.md")
+    if os.path.isfile(ruta_global):
+        try:
+            with open(ruta_global, "r", encoding="utf-8") as f:
+                contenido = f.read().strip()
+                if contenido:
+                    partes.append(contenido)
+        except (OSError, IOError) as e:
+            logger.warning(f"No se pudo leer global.md: {e}")
+    else:
+        logger.warning("knowledge/global.md no encontrado — prompts sin conocimiento global")
 
-    supabase_url = os.getenv("SUPABASE_URL", "")
-    supabase_key = os.getenv("SUPABASE_SERVICE_KEY", "")
+    # Capa 2: ficha del proyecto específico (solo si se conoce)
+    if proyecto_slug:
+        normalizado = proyecto_slug.lower().replace("-", "_").replace(" ", "_")
+        ruta_proyecto = os.path.join(_KNOWLEDGE_DIR, "proyectos", f"{normalizado}.md")
+        if os.path.isfile(ruta_proyecto):
+            try:
+                with open(ruta_proyecto, "r", encoding="utf-8") as f:
+                    contenido = f.read().strip()
+                    if contenido:
+                        partes.append(contenido)
+                logger.debug(f"Knowledge: global + {normalizado}.md ({len(partes[1]) if len(partes) > 1 else 0} chars proyecto)")
+            except (OSError, IOError) as e:
+                logger.warning(f"No se pudo leer {ruta_proyecto}: {e}")
+        else:
+            logger.warning(f"Sin ficha para proyecto '{proyecto_slug}' — usando solo global.md")
+    else:
+        logger.debug("Knowledge: solo global.md (proyecto no detectado aún)")
 
-    if not supabase_url or not supabase_key:
-        logger.warning("SUPABASE_URL / SUPABASE_SERVICE_KEY no configurados — prompt global omitido")
-        _cache_global_prompt = ""
-        _cache_timestamp = ahora
-        return ""
-
-    try:
-        url = f"{supabase_url}/rest/v1/sofia_config?select=global_prompt&limit=1"
-        headers = {
-            "apikey": supabase_key,
-            "Authorization": f"Bearer {supabase_key}",
-        }
-        async with httpx.AsyncClient(timeout=5) as http:
-            r = await http.get(url, headers=headers)
-            r.raise_for_status()
-            rows = r.json()
-            logger.info(f"sofia_config respuesta cruda: {rows}")
-            valor = rows[0]["global_prompt"].strip() if rows and rows[0].get("global_prompt") else ""
-    except Exception as e:
-        logger.warning(f"No se pudo leer prompt global de Supabase: {e}")
-        valor = ""
-
-    _cache_global_prompt = _limpiar_prompt(valor)
-    _cache_timestamp = ahora
-    logger.info(f"Prompt global cargado ({len(valor)} chars): {valor[:80]!r}")
-    return _cache_global_prompt
-
-
-def _obtener_prompt_global_resuelto() -> str:
-    """Retorna el prompt global con las variables de fecha resueltas en tiempo real."""
-    return _resolver_variables_prompt(_cache_global_prompt or "")
-
-# Prompt base de Sofía — se usa cuando el CRM no tiene proyecto para este cliente
-_PROMPT_BIENVENIDA = """Eres Sofía, la asesora virtual de Sucol Soluciones Urbanísticas.
-
-## Tu rol
-Atiendes a personas interesadas en adquirir lotes o proyectos urbanísticos de Sucol.
-Tu objetivo es entender en qué proyecto está interesado el cliente y conectarlo con la
-información correcta.
-
-## Proyectos disponibles
-{lista_proyectos}
-
-## Cómo actuar
-- Saluda de forma cálida y profesional
-- Pregunta por cuál de los proyectos le interesa obtener información
-- Una vez que identifiques el proyecto, el sistema te dará información detallada
-- Si el cliente no está seguro, descríbele brevemente cada proyecto y ayúdalo a elegir
-- NUNCA inventes precios ni datos que no tengas — di que lo conectarás con un asesor
-
-## Reglas
-- Responde siempre en español
-- Sé empática, clara y profesional
-- Mantén las respuestas cortas y útiles
-- Termina siempre con una pregunta o invitación a continuar"""
+    return "\n\n---\n\n".join(partes)
 
 
 def _cargar_config_prompts() -> dict:
@@ -221,7 +189,7 @@ def _prompt_base_yaml() -> str:
     config = _cargar_config_prompts()
     return config.get(
         "system_prompt",
-        "Eres Sofía, asesora virtual de Sucol Soluciones Urbanísticas. Responde en español.",
+        "Eres Sofía, Asesora Digital de SUCOL Soluciones Urbanísticas. Responde en español.",
     )
 
 
@@ -239,6 +207,20 @@ def _mensaje_fallback() -> str:
         "fallback_message",
         "Disculpa, no entendí bien tu mensaje. ¿Puedes contarme en qué te puedo ayudar?",
     )
+
+
+def _construir_prompt_base(proyecto_slug: str | None = None) -> str:
+    """
+    Construye el system prompt base combinando:
+    1. config/prompts.yaml           — identidad y reglas de comportamiento de Sofía
+    2. knowledge/global.md           — empresa, directorio, directrices maestras
+    3. knowledge/proyectos/[slug].md — ficha del proyecto (si se conoce)
+    """
+    persona = _prompt_base_yaml()
+    knowledge = _cargar_knowledge(proyecto_slug)
+    if knowledge:
+        return persona + "\n\n---\n\n" + knowledge
+    return persona
 
 
 def _fecha_colombia() -> str:
@@ -359,19 +341,6 @@ def _construir_contexto_crm(
 
     return "\n".join(partes)
 
-
-async def _prompt_bienvenida_con_proyectos() -> str:
-    """Genera el prompt genérico listando los proyectos activos del CRM."""
-    try:
-        from agent.crm import obtener_proyectos_activos
-        proyectos = await obtener_proyectos_activos()
-        if proyectos:
-            lista = "\n".join(f"- {p['nombre']}" for p in proyectos)
-        else:
-            lista = "- Proyectos urbanísticos Sucol (consulta disponibilidad)"
-    except Exception:
-        lista = "- Proyectos urbanísticos Sucol (consulta disponibilidad)"
-    return _PROMPT_BIENVENIDA.format(lista_proyectos=lista)
 
 
 _TOOL_NOTIFICAR_AREA = {
@@ -538,17 +507,17 @@ def _reglas_finales(asesor: dict | None) -> str:
 async def generar_respuesta_con_tools(
     mensaje: str,
     historial: list[dict],
-    sistema_prompt: str | None = None,
     contexto_lead: dict | None = None,
     lotes_disponibles: list[dict] | None = None,
     telefono: str = "",
     asesor: dict | None = None,
     agendamientos: list[dict] | None = None,
+    proyecto_slug: str | None = None,
 ) -> str:
     """
-    Como generar_respuesta() pero con soporte de tool_use.
-    Cuando Gemini invoca confirmar_cita, ejecuta la herramienta real y le devuelve
-    el resultado antes de obtener el mensaje final para el cliente.
+    Genera respuesta con soporte de tool_use.
+    El system prompt se construye desde config/prompts.yaml + knowledge/global.md
+    + knowledge/proyectos/[proyecto_slug].md (si se conoce el proyecto).
     Retorna solo el texto de respuesta para el cliente.
     """
     from agent.tools import (
@@ -565,15 +534,7 @@ async def generar_respuesta_con_tools(
     if not es_inicio and (not mensaje or len(mensaje.strip()) < 2):
         return _mensaje_fallback()
 
-    if sistema_prompt and sistema_prompt.strip():
-        prompt_final = sistema_prompt
-    else:
-        prompt_final = await _prompt_bienvenida_con_proyectos()
-
-    await _obtener_prompt_global()  # refresca caché si venció
-    global_prompt = _obtener_prompt_global_resuelto()
-    if global_prompt:
-        prompt_final = global_prompt + "\n\n---\n\n" + prompt_final
+    prompt_final = _construir_prompt_base(proyecto_slug)
 
     contexto_crm = _construir_contexto_crm(contexto_lead, lotes_disponibles or [], asesor, agendamientos or [])
     if contexto_crm:
@@ -683,37 +644,22 @@ async def generar_respuesta_con_tools(
 async def generar_respuesta(
     mensaje: str,
     historial: list[dict],
-    sistema_prompt: str | None = None,
     contexto_lead: dict | None = None,
     lotes_disponibles: list[dict] | None = None,
     asesor: dict | None = None,
     agendamientos: list[dict] | None = None,
+    proyecto_slug: str | None = None,
 ) -> str:
     """
     Genera una respuesta usando Gemini API.
-
-    Args:
-        mensaje: El mensaje nuevo del cliente
-        historial: Mensajes anteriores [{"role": "...", "content": "..."}]
-        sistema_prompt: System prompt del proyecto desde el CRM. Si es None, usa bienvenida genérica.
-        contexto_lead: Datos del lead para personalizar la respuesta.
-        lotes_disponibles: Lotes del proyecto para responder preguntas de precios/áreas.
+    El system prompt se construye desde config/prompts.yaml + knowledge/global.md
+    + knowledge/proyectos/[proyecto_slug].md (si se conoce el proyecto).
     """
     if not mensaje or len(mensaje.strip()) < 2:
         return _mensaje_fallback()
 
-    if sistema_prompt and sistema_prompt.strip():
-        prompt_final = sistema_prompt
-    else:
-        prompt_final = await _prompt_bienvenida_con_proyectos()
+    prompt_final = _construir_prompt_base(proyecto_slug)
 
-    # Inyectar prompt global del admin (si existe) al inicio
-    await _obtener_prompt_global()  # refresca caché si venció
-    global_prompt = _obtener_prompt_global_resuelto()
-    if global_prompt:
-        prompt_final = global_prompt + "\n\n---\n\n" + prompt_final
-
-    # Inyectar contexto CRM completo (lead + lotes)
     contexto_crm = _construir_contexto_crm(contexto_lead, lotes_disponibles or [], asesor, agendamientos or [])
     if contexto_crm:
         prompt_final += "\n\n" + contexto_crm

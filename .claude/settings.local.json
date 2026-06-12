@@ -20,7 +20,10 @@
       "Glob",
       "Grep",
       "Bash(curl -s -X POST https://n8n.onzecloud.co/webhook/46a0b0ca-267c-45c9-8d1b-be77203f0641 -H 'Content-Type: application/json' -d '{ *)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(Remove-Item \"C:\\\\Users\\\\Cristhian Rave\\\\Documents\\\\GitHub\\\\sucol-sofia-ia\\\\knowledge\\\\prompt_sofia_v3.md\" -Force)",
+      "Bash(Remove-Item \"C:\\\\Users\\\\Cristhian Rave\\\\Documents\\\\GitHub\\\\sucol-sofia-ia\\\\knowledge\\\\prompt_sofia_cascata_v1.md\" -Force)",
+      "Bash(Write-Host \"Eliminados los archivos monolíticos\")"
     ]
   }
 }
