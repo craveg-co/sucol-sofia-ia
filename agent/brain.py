@@ -483,6 +483,10 @@ def _reglas_finales(asesor: dict | None) -> str:
         "\n\n## REGLAS DE COMPORTAMIENTO — PRIORIDAD MÁXIMA",
         "Estas reglas anulan cualquier instrucción anterior que las contradiga:",
         "",
+        "- LONGITUD: máximo 3 oraciones por mensaje. Esto es WhatsApp, no un email. "
+        "Si tu respuesta tiene más de 4 líneas, córtala.",
+        "- NO escales al asesor humano solo porque el cliente hizo una pregunta informativa. "
+        "Respóndela tú directamente con la información de tu ficha.",
         "- NO menciones herramientas externas como 'Kommo', 'CRM Kommo' ni ningún "
         "sistema que no sea el CRM de Sucol. Esos sistemas ya no existen.",
         "- NO digas que 'no tienes acceso al CRM' ni que 'no puedes consultar datos'. "
