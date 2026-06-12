@@ -319,8 +319,8 @@ def _construir_contexto_crm(
             partes.append(f"- {tipo} el {fecha} a las {hora} con {asesor_cita} — Estado: {estado}")
 
     if lotes:
-        partes.append("\n## Lotes disponibles en este proyecto")
-        partes.append("Usa esta información cuando pregunten por precios, áreas o formas de pago:")
+        partes.append("\n## Lotes disponibles en este proyecto (datos exactos del CRM)")
+        partes.append("Usa esta información para precios y áreas específicas. Si hay contradicción con la ficha del proyecto, prevalece esta tabla:")
         for lote in lotes:
             linea = f"- Lote {lote.get('codigo', 'S/N')}"
             if lote.get("area_m2"):
@@ -332,12 +332,8 @@ def _construir_contexto_crm(
             if lote.get("cuotas_cantidad") and lote.get("cuota_valor"):
                 linea += f" | {lote['cuotas_cantidad']} cuotas de ${lote['cuota_valor']:,.0f}"
             partes.append(linea)
-    elif lead and lead.get("proyecto"):
-        partes.append("\n## Disponibilidad de lotes")
-        partes.append(
-            "No hay lotes disponibles en este momento. "
-            "Ofrece al cliente hablar con el asesor para revisar opciones."
-        )
+    # Si el CRM no tiene lotes en tabla, Sofía usa la ficha del proyecto en knowledge/ como fuente de verdad.
+    # NO se agrega ningún mensaje de "no hay unidades" — ese dato viene de la ficha.
 
     return "\n".join(partes)
 
