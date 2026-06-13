@@ -292,21 +292,24 @@ def _construir_contexto_crm(
 
     # Sección asesor — siempre que exista, independiente del lead
     if asesor:
-        partes.append("\n## Asesor asignado a este cliente")
+        partes.append("\n## Asesor asignado a este cliente (uso interno)")
         partes.append(f"- Nombre: {asesor.get('nombre', 'No disponible')}")
         if asesor.get("telefono"):
             partes.append(f"- Teléfono WhatsApp: {asesor['telefono']}")
         if asesor.get("email"):
             partes.append(f"- Email: {asesor['email']}")
         partes.append(
-            "IMPORTANTE: Si el cliente pregunta por el teléfono o número de su asesor, "
-            "responde directamente con el teléfono indicado arriba. No digas que no tienes esa información."
+            "INSTRUCCIÓN: NO menciones espontáneamente al asesor ni su teléfono en tu respuesta. "
+            "Solo proporciona estos datos si el cliente los pide explícitamente. "
+            "Tu función es resolver las preguntas del cliente y agendar citas — no derivarlo al asesor."
         )
     elif lead and lead.get("asesor_responsable"):
-        # Tenemos nombre del asesor en el lead pero no pudimos buscarlo en asesores
-        partes.append(f"\n## Asesor asignado a este cliente")
+        partes.append(f"\n## Asesor asignado a este cliente (uso interno)")
         partes.append(f"- Nombre: {lead['asesor_responsable']}")
-        partes.append("- Teléfono: no disponible en este momento, deriva al cliente a ventas@sucol.co")
+        partes.append(
+            "INSTRUCCIÓN: NO menciones al asesor ni lo ofrezcas proactivamente. "
+            "Solo si el cliente pide contactar a una persona humana, indícale que su asesor se pondrá en contacto."
+        )
 
     if agendamientos:
         partes.append("\n## Citas agendadas del cliente")
@@ -367,9 +370,13 @@ _TOOL_NOTIFICAR_AREA = {
 _TOOL_ESCALAR_ASESOR = {
     "name": "escalar_a_asesor",
     "description": (
-        "Transfiere al cliente con su asesor asignado de forma inmediata cuando el cliente "
-        "quiere hablar con una persona ahora, tiene una consulta urgente, o prefiere no agendar "
-        "una cita y simplemente ser contactado por un asesor."
+        "Notifica al asesor humano para que contacte al cliente. "
+        "ÚSALO SOLO en estos casos específicos: "
+        "(1) El cliente pide hablar con una persona humana de forma explícita. "
+        "(2) El cliente quiere negociar precio o un descuento mayor al 3%. "
+        "(3) El cliente tiene una queja, problema legal, tema de cartera o escrituras. "
+        "NO usar para preguntas sobre proyectos, disponibilidad, precios o para agendar citas — "
+        "esas las gestiona Sofía directamente con confirmar_cita."
     ),
     "input_schema": {
         "type": "object",
