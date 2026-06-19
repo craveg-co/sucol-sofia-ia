@@ -1,7 +1,9 @@
 import unittest
 
 from agent.brain import (
+    _corregir_disponibilidad,
     _construir_contexto_crm,
+    _quitar_mencion_asesor_no_solicitada,
     _respuesta_operativa_visita,
     _sanitizar_historial,
     _validar_respuesta_oficial,
@@ -93,6 +95,50 @@ class DatosOficialesTest(unittest.TestCase):
 
         self.assertIn(PROYECTO["direccion_visita"], respuesta)
         self.assertIn(PROYECTO["google_maps_url"], respuesta)
+
+    def test_elimina_asesora_y_telefono_si_cliente_no_los_pidio(self):
+        respuesta = (
+            "Santa Elena tiene opciones disponibles.\n\n"
+            "Tu asesora Juliana Duque (+573170402005) puede contarte más. "
+            "¿Quieres que te conecte con ella?"
+        )
+
+        limpia = _quitar_mencion_asesor_no_solicitada(
+            respuesta,
+            "Cuéntame de Santa Elena",
+            {"nombre": "Juliana Duque", "telefono": "+573170402005"},
+        )
+
+        self.assertIn("Santa Elena tiene opciones disponibles", limpia)
+        self.assertNotIn("Juliana", limpia)
+        self.assertNotIn("3170402005", limpia)
+        self.assertNotIn("asesora", limpia.lower())
+
+    def test_conserva_contacto_si_cliente_pide_asesora(self):
+        respuesta = "Tu asesora Juliana Duque es +573170402005."
+
+        limpia = _quitar_mencion_asesor_no_solicitada(
+            respuesta,
+            "Dame el WhatsApp de mi asesora",
+            {"nombre": "Juliana Duque", "telefono": "+573170402005"},
+        )
+
+        self.assertEqual(limpia, respuesta)
+
+    def test_corrige_falsa_indisponibilidad_con_lotes_crm(self):
+        respuesta = _corregir_disponibilidad(
+            "En este momento no contamos con unidades disponibles.",
+            [
+                {"area_m2": 48, "precio_total": 39142580},
+                {"area_m2": 72, "precio_total": 53884584},
+            ],
+            PROYECTO,
+        )
+
+        self.assertIn("Sí tenemos opciones disponibles", respuesta)
+        self.assertIn("48", respuesta)
+        self.assertIn("72", respuesta)
+        self.assertIn("agendar una visita", respuesta)
 
 
 if __name__ == "__main__":

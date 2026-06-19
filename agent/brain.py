@@ -306,7 +306,6 @@ def _construir_contexto_crm(
             "nombre_completo": "Nombre del cliente",
             "etapa_lead": "Etapa en el CRM",
             "pipeline": "Pipeline",
-            "asesor_responsable": "Asesor asignado",
             "proyecto": "Proyecto de interés",
             "canal": "Canal de origen",
             "presupuesto": "Presupuesto declarado",
@@ -505,8 +504,9 @@ _TOOL_CONFIRMAR_CITA = {
     "description": (
         "Agenda una cita en el CRM y notifica al asesor por WhatsApp cuando el cliente "
         "confirma fecha, hora y tipo de cita. La respuesta de esta herramienta contiene "
-        "los datos completos de la cita y del asesor; al responder al cliente, conserva "
-        "esos datos sin omitir el teléfono del asesor."
+        "la confirmación de la cita. Al responder al cliente, confirma tipo, fecha y hora, "
+        "pero NO menciones el nombre, teléfono ni correo del asesor salvo que el cliente "
+        "haya pedido explícitamente esos datos."
     ),
     "input_schema": {
         "type": "object",
@@ -554,6 +554,11 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
         "Si tu respuesta tiene más de 4 líneas, córtala.",
         "- NO escales al asesor humano solo porque el cliente hizo una pregunta informativa. "
         "Respóndela tú directamente con la información de tu ficha.",
+        "- PROACTIVIDAD: después de responder, invita de forma natural a agendar una visita, "
+        "una llamada o una cita virtual según el proyecto. Sofía conduce el proceso.",
+        "- ASESOR: no menciones que el cliente tiene asesor asignado, ni su nombre, teléfono "
+        "o correo. No ofrezcas 'conectarlo con su asesor'. Solo puedes hacerlo si el cliente "
+        "pide explícitamente hablar con una persona o solicita el contacto de un asesor.",
         "- NO menciones herramientas externas como 'Kommo', 'CRM Kommo' ni ningún "
         "sistema que no sea el CRM de Sucol. Esos sistemas ya no existen.",
         "- NO digas que 'no tienes acceso al CRM' ni que 'no puedes consultar datos'. "
@@ -675,6 +680,107 @@ _PATRON_PREGUNTA_VISITA = re.compile(
     re.IGNORECASE,
 )
 
+_PATRON_SOLICITUD_ASESOR = re.compile(
+    r"\b(asesor(?:a)?|persona\s+real|persona\s+humana|humano|ejecutiv[oa]|"
+    r"hablar\s+con\s+alguien|contacto\s+humano|tel[eé]fono\s+de|"
+    r"n[uú]mero\s+de|whatsapp\s+de)\b",
+    re.IGNORECASE,
+)
+
+_PATRON_MENCION_ASESOR = re.compile(
+    r"\b(tu|el|la|un|una)\s+asesor(?:a)?\b|"
+    r"\basesor(?:a)?\s+asignad[oa]\b|"
+    r"\bte\s+conect[oa]\s+con\b",
+    re.IGNORECASE,
+)
+
+_PATRON_SIN_DISPONIBILIDAD = re.compile(
+    r"\b(no\s+(?:contamos|tenemos|hay)\s+(?:con\s+)?(?:unidades|lotes|"
+    r"eco-h[aá]bitats?)\s+disponibles|sin\s+unidades\s+disponibles|"
+    r"agotad[oa]s?)\b",
+    re.IGNORECASE,
+)
+
+
+def _cliente_pide_asesor(mensaje: str) -> bool:
+    return bool(_PATRON_SOLICITUD_ASESOR.search(mensaje or ""))
+
+
+def _quitar_mencion_asesor_no_solicitada(
+    respuesta: str,
+    mensaje_cliente: str,
+    asesor: dict | None,
+) -> str:
+    """Elimina párrafos que exponen o promocionan al asesor sin solicitud expresa."""
+    if _cliente_pide_asesor(mensaje_cliente):
+        return respuesta
+
+    nombre = str((asesor or {}).get("nombre") or "").strip()
+    telefono = re.sub(r"\D", "", str((asesor or {}).get("telefono") or ""))
+    bloques = re.split(r"\n\s*\n", respuesta or "")
+    limpios = []
+
+    for bloque in bloques:
+        bloque_digitos = re.sub(r"\D", "", bloque)
+        menciona_datos = bool(
+            (nombre and nombre.lower() in bloque.lower())
+            or (telefono and telefono in bloque_digitos)
+            or _PATRON_MENCION_ASESOR.search(bloque)
+        )
+        if menciona_datos:
+            logger.warning("Respuesta: mención proactiva del asesor eliminada")
+            continue
+        limpios.append(bloque.strip())
+
+    return "\n\n".join(b for b in limpios if b).strip()
+
+
+def _corregir_disponibilidad(
+    respuesta: str,
+    lotes: list[dict],
+    proyecto: dict | None,
+) -> str:
+    """Bloquea afirmaciones de inventario agotado cuando el CRM tiene disponibles."""
+    if not lotes or not _PATRON_SIN_DISPONIBILIDAD.search(respuesta or ""):
+        return respuesta
+
+    nombre = (proyecto or {}).get("nombre") or "este proyecto"
+    areas = sorted(
+        {str(lote.get("area_m2")) for lote in lotes if lote.get("area_m2") is not None},
+        key=lambda valor: float(valor),
+    )
+    detalle = f" en áreas de {', '.join(areas)} m²" if areas else ""
+    logger.error("Respuesta: falsa indisponibilidad reemplazada con inventario CRM")
+    return (
+        f"Sí tenemos opciones disponibles actualmente en {nombre}{detalle}. "
+        "Puedo mostrarte precios y alternativas o agendar una visita, llamada o cita virtual. "
+        "¿Cuál opción prefieres?"
+    )
+
+
+def _procesar_respuesta_cliente(
+    respuesta: str,
+    mensaje_cliente: str,
+    proyecto: dict | None,
+    lotes: list[dict],
+    asesor: dict | None,
+) -> str:
+    respuesta = _validar_respuesta_oficial(respuesta, proyecto)
+    respuesta = _corregir_disponibilidad(respuesta, lotes, proyecto)
+    respuesta = _quitar_mencion_asesor_no_solicitada(
+        respuesta,
+        mensaje_cliente,
+        asesor,
+    )
+    if respuesta:
+        return respuesta
+
+    nombre = (proyecto or {}).get("nombre") or "el proyecto"
+    return (
+        f"Puedo ayudarte directamente con la información de {nombre} y agendar una visita, "
+        "llamada o cita virtual. ¿Qué prefieres?"
+    )
+
 
 def _respuesta_operativa_visita(
     mensaje: str,
@@ -753,10 +859,11 @@ async def generar_respuesta_con_tools(
 
     prompt_final = _construir_prompt_base(proyecto_slug, proyecto)
 
+    asesor_para_contexto = asesor if _cliente_pide_asesor(mensaje) else None
     contexto_crm = _construir_contexto_crm(
         contexto_lead,
         lotes_disponibles or [],
-        asesor,
+        asesor_para_contexto,
         agendamientos or [],
         proyecto,
     )
@@ -764,7 +871,7 @@ async def generar_respuesta_con_tools(
         prompt_final += "\n\n" + contexto_crm
 
     # Reglas finales de prioridad máxima — siempre al final para prevalecer sobre el prompt base
-    prompt_final += _reglas_finales(asesor, proyecto)
+    prompt_final += _reglas_finales(asesor_para_contexto, proyecto)
 
     historial_limpio = _sanitizar_historial(historial, proyecto)
     mensajes: list = [
@@ -861,7 +968,13 @@ async def generar_respuesta_con_tools(
             respuesta = response.content[0].text
             logger.info(f"Respuesta generada ({response.usage.input_tokens} in / {response.usage.output_tokens} out)")
 
-        return _validar_respuesta_oficial(respuesta, proyecto)
+        return _procesar_respuesta_cliente(
+            respuesta,
+            mensaje,
+            proyecto,
+            lotes_disponibles or [],
+            asesor,
+        )
 
     except Exception as e:
         logger.error(f"Error Gemini API (con tools): {e}")
@@ -892,17 +1005,18 @@ async def generar_respuesta(
 
     prompt_final = _construir_prompt_base(proyecto_slug, proyecto)
 
+    asesor_para_contexto = asesor if _cliente_pide_asesor(mensaje) else None
     contexto_crm = _construir_contexto_crm(
         contexto_lead,
         lotes_disponibles or [],
-        asesor,
+        asesor_para_contexto,
         agendamientos or [],
         proyecto,
     )
     if contexto_crm:
         prompt_final += "\n\n" + contexto_crm
 
-    prompt_final += _reglas_finales(asesor, proyecto)
+    prompt_final += _reglas_finales(asesor_para_contexto, proyecto)
 
     historial_limpio = _sanitizar_historial(historial, proyecto)
     mensajes = [
@@ -920,7 +1034,13 @@ async def generar_respuesta(
         )
         respuesta = response.content[0].text
         logger.info(f"Respuesta generada ({response.usage.input_tokens} in / {response.usage.output_tokens} out)")
-        return _validar_respuesta_oficial(respuesta, proyecto)
+        return _procesar_respuesta_cliente(
+            respuesta,
+            mensaje,
+            proyecto,
+            lotes_disponibles or [],
+            asesor,
+        )
 
     except Exception as e:
         logger.error(f"Error Gemini API: {e}")

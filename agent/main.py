@@ -383,36 +383,36 @@ async def _gather_uno(coro):
 
 async def _detectar_proyecto(telefono: str, mensaje: str) -> dict | None:
     """
-    Detecta el proyecto en 3 pasos:
-    1. contactos_whatsapp → leads  (obtener_proyecto_por_telefono ya hace ambos)
-    2. Mención en el mensaje
-    Si detecta por mensaje, lo guarda en contactos_whatsapp para la próxima vez.
+    Detecta el proyecto con esta prioridad:
+    1. Mención explícita en el mensaje actual.
+    2. contactos_whatsapp → leads (contexto persistido).
+
+    Una mención explícita siempre actualiza el proyecto activo del chat. Esto evita
+    responder sobre Santa Elena usando el inventario de Cascata, o viceversa.
     """
-    # Pasos 1+2: contactos_whatsapp luego leads (con auto-registro si viene de leads)
-    try:
-        proyecto = await obtener_proyecto_por_telefono(telefono)
-    except Exception as e:
-        logger.error(f"Error buscando proyecto por teléfono: {e}")
-        proyecto = None
+    proyecto_mencionado = None
+    if mensaje and mensaje.strip():
+        try:
+            proyecto_mencionado = await detectar_proyecto_en_mensaje(mensaje)
+        except Exception as e:
+            logger.error(f"Error detectando proyecto en mensaje: {e}")
 
-    if proyecto:
-        return proyecto
-
-    # Paso 3: detectar por mención en el mensaje
-    try:
-        proyecto = await detectar_proyecto_en_mensaje(mensaje)
-    except Exception as e:
-        logger.error(f"Error detectando proyecto en mensaje: {e}")
-        proyecto = None
-
-    if proyecto:
-        logger.info(f"Proyecto detectado por mensaje para {telefono}: {proyecto.get('slug')}")
+    if proyecto_mencionado:
+        logger.info(
+            f"Proyecto explícito detectado para {telefono}: "
+            f"{proyecto_mencionado.get('slug')}"
+        )
         try:
             await crear_o_actualizar_contacto_whatsapp(
                 telefono,
-                {"proyecto_slug": proyecto["slug"]},
+                {"proyecto_slug": proyecto_mencionado["slug"]},
             )
         except Exception as e:
-            logger.warning(f"No se pudo guardar proyecto detectado para {telefono}: {e}")
+            logger.warning(f"No se pudo actualizar proyecto activo para {telefono}: {e}")
+        return proyecto_mencionado
 
-    return proyecto
+    try:
+        return await obtener_proyecto_por_telefono(telefono)
+    except Exception as e:
+        logger.error(f"Error buscando proyecto por teléfono: {e}")
+        return None

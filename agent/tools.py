@@ -319,7 +319,6 @@ async def _confirmar_cita_edge(
         return "No pude agendar la cita en este momento. Por favor intenta de nuevo en unos minutos."
 
     cita = data.get("cita") or {}
-    asesor = data.get("asesor") or {}
     lineas = [
         "Cita agendada.",
         "",
@@ -327,18 +326,12 @@ async def _confirmar_cita_edge(
         f"Tipo de cita: {cita.get('tipo') or tipo_cita}",
         f"Fecha: {cita.get('fecha') or fecha_cita}",
         f"Hora: {cita.get('hora') or hora_cita}",
-        "",
-        f"Asesor: {asesor.get('nombre') or 'Asesor Sucol'}",
     ]
-    if asesor.get("telefono"):
-        lineas.append(f"WhatsApp asesor: {asesor['telefono']}")
-    if asesor.get("email"):
-        lineas.append(f"Email asesor: {asesor['email']}")
     lineas.append("")
     if data.get("duplicado"):
         lineas.append("Ya existia una cita pendiente con esos mismos datos; te comparto la informacion registrada.")
     else:
-        lineas.append("Tu asesor ya fue notificado.")
+        lineas.append("La cita quedó registrada correctamente.")
     return "\n".join(lineas)
 
 
