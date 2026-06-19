@@ -668,6 +668,54 @@ def _validar_respuesta_oficial(
     return respuesta_segura
 
 
+_PATRON_PREGUNTA_VISITA = re.compile(
+    r"\b(d[oó]nde|direcci[oó]n|ubicaci[oó]n|c[oó]mo\s+llegar|"
+    r"c[oó]mo\s+voy|a\s+d[oó]nde|para\s+una\s+visita|ir\s+a\s+ver|"
+    r"visitar|visita\s+presencial)\b",
+    re.IGNORECASE,
+)
+
+
+def _respuesta_operativa_visita(
+    mensaje: str,
+    proyecto: dict | None,
+) -> str | None:
+    """
+    Responde preguntas operativas de ubicación sin generación libre.
+
+    Direcciones y protocolos de acceso son datos de alto riesgo: se copian del
+    CRM o de una política explícita del proyecto, nunca se delegan al modelo.
+    """
+    if not proyecto or not _PATRON_PREGUNTA_VISITA.search(mensaje or ""):
+        return None
+
+    slug = str(proyecto.get("slug") or "").lower()
+    nombre = proyecto.get("nombre") or "el proyecto"
+
+    if slug == "cascata":
+        return (
+            "Para conocer Cascata, el primer paso es hacer el recorrido virtual 360° en "
+            "https://cascata360.sucol.co. La visita presencial se agenda después del "
+            "recorrido virtual y de la autorización de la Dirección Comercial. "
+            "¿Quieres que agendemos primero la sesión virtual?"
+        )
+
+    direccion = proyecto.get("direccion_visita")
+    maps_url = proyecto.get("google_maps_url")
+    if direccion:
+        respuesta = f"Para visitar {nombre}, la dirección oficial es {direccion}."
+        if maps_url:
+            respuesta += f" Puedes guiarte aquí: {maps_url}"
+        respuesta += " ¿Qué día y hora deseas agendar?"
+        return respuesta
+
+    return (
+        f"No hay una dirección oficial de visita registrada para {nombre}. "
+        "Antes de que te desplaces, puedo solicitar al equipo de SUCOL que confirme "
+        "el punto autorizado."
+    )
+
+
 async def generar_respuesta_con_tools(
     mensaje: str,
     historial: list[dict],
@@ -698,6 +746,10 @@ async def generar_respuesta_con_tools(
 
     if not es_inicio and (not mensaje or len(mensaje.strip()) < 2):
         return _mensaje_fallback()
+
+    respuesta_operativa = _respuesta_operativa_visita(mensaje, proyecto)
+    if respuesta_operativa:
+        return respuesta_operativa
 
     prompt_final = _construir_prompt_base(proyecto_slug, proyecto)
 
@@ -833,6 +885,10 @@ async def generar_respuesta(
     """
     if not mensaje or len(mensaje.strip()) < 2:
         return _mensaje_fallback()
+
+    respuesta_operativa = _respuesta_operativa_visita(mensaje, proyecto)
+    if respuesta_operativa:
+        return respuesta_operativa
 
     prompt_final = _construir_prompt_base(proyecto_slug, proyecto)
 

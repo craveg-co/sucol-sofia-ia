@@ -2,6 +2,7 @@ import unittest
 
 from agent.brain import (
     _construir_contexto_crm,
+    _respuesta_operativa_visita,
     _sanitizar_historial,
     _validar_respuesta_oficial,
 )
@@ -69,6 +70,29 @@ class DatosOficialesTest(unittest.TestCase):
             respuesta,
         )
         self.assertNotIn("Calle 1", respuesta)
+
+    def test_cascata_aplica_protocolo_virtual_antes_de_visita(self):
+        respuesta = _respuesta_operativa_visita(
+            "¿A dónde tengo que ir para una visita?",
+            {
+                "slug": "cascata",
+                "nombre": "Cascata",
+                "direccion_visita": None,
+            },
+        )
+
+        self.assertIn("https://cascata360.sucol.co", respuesta)
+        self.assertIn("autorización de la Dirección Comercial", respuesta)
+        self.assertNotIn("asesora", respuesta.lower())
+
+    def test_proyecto_con_direccion_responde_dato_oficial_sin_modelo(self):
+        respuesta = _respuesta_operativa_visita(
+            "¿Dónde queda el punto para visitar?",
+            PROYECTO,
+        )
+
+        self.assertIn(PROYECTO["direccion_visita"], respuesta)
+        self.assertIn(PROYECTO["google_maps_url"], respuesta)
 
 
 if __name__ == "__main__":
