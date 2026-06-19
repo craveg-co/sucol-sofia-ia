@@ -8,6 +8,7 @@ from agent.brain import (
     _respuesta_operativa_visita,
     _sanitizar_historial,
     _validar_respuesta_oficial,
+    separar_mensajes_whatsapp,
 )
 
 
@@ -173,6 +174,36 @@ class DatosOficialesTest(unittest.TestCase):
         self.assertNotIn("Juliana", respuesta)
         self.assertNotIn("Para el proyecto", respuesta)
         self.assertIn("Bora tiene 1 opciones disponibles", respuesta)
+
+    def test_separa_informacion_y_pregunta_en_dos_mensajes(self):
+        mensajes = separar_mensajes_whatsapp(
+            "Bora está ubicado en Jamundí y tiene opciones desde 48 m². "
+            "¿Quieres más información o prefieres agendar una visita?",
+            {"slug": "bora", "nombre": "Bora"},
+        )
+
+        self.assertEqual(len(mensajes), 2)
+        self.assertIn("Bora está ubicado", mensajes[0])
+        self.assertTrue(mensajes[1].startswith("¿"))
+
+    def test_agrega_cta_si_el_modelo_no_la_genero(self):
+        mensajes = separar_mensajes_whatsapp(
+            "Bora está ubicado en Jamundí y cuenta con opciones para vivienda o negocio.",
+            {"slug": "bora", "nombre": "Bora"},
+        )
+
+        self.assertEqual(len(mensajes), 2)
+        self.assertIn("agendar una visita", mensajes[1])
+        self.assertIn("programar una llamada", mensajes[1])
+
+    def test_cascata_no_ofrece_visita_directa_en_cta_generada(self):
+        mensajes = separar_mensajes_whatsapp(
+            "Cascata ofrece eco-hábitats sustentables en Pance.",
+            {"slug": "cascata", "nombre": "Cascata"},
+        )
+
+        self.assertIn("recorrido virtual 360°", mensajes[1])
+        self.assertNotIn("agendar una visita", mensajes[1])
 
 
 if __name__ == "__main__":

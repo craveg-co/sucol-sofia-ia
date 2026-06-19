@@ -18,7 +18,7 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from agent.brain import generar_respuesta_con_tools
+from agent.brain import generar_respuesta_con_tools, separar_mensajes_whatsapp
 from agent.memory import inicializar_db, guardar_mensaje, obtener_historial
 from agent.providers import obtener_proveedor
 from agent.crm import (
@@ -337,12 +337,19 @@ async def webhook_handler(request: Request):
             except Exception as e:
                 logger.error(f"Error guardando memoria para {telefono}: {e}")
 
+            mensajes_salida = separar_mensajes_whatsapp(respuesta, proyecto)
             try:
-                await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                for indice, mensaje_salida in enumerate(mensajes_salida):
+                    if indice:
+                        await asyncio.sleep(0.6)
+                    await proveedor.enviar_mensaje(msg.telefono, mensaje_salida)
             except Exception as e:
                 logger.error(f"Error enviando mensaje a {telefono}: {e}")
 
-            logger.info(f"Respuesta a {telefono} [{proyecto_slug or 'sin proyecto'}]: {respuesta[:80]}")
+            logger.info(
+                f"Respuesta a {telefono} [{proyecto_slug or 'sin proyecto'}] "
+                f"en {len(mensajes_salida)} mensaje(s): {respuesta[:80]}"
+            )
 
         return {"status": "ok"}
 

@@ -839,6 +839,38 @@ def _procesar_respuesta_cliente(
     return _respuesta_resumen_crm(proyecto, lotes)
 
 
+def separar_mensajes_whatsapp(
+    respuesta: str,
+    proyecto: dict | None = None,
+) -> list[str]:
+    """
+    Separa la información y la invitación final en dos mensajes de WhatsApp.
+
+    Si el modelo no generó una pregunta final, agrega una CTA segura de acuerdo
+    con el protocolo del proyecto.
+    """
+    texto = (respuesta or "").strip()
+    if not texto:
+        return []
+
+    inicio_pregunta = texto.rfind("¿")
+    if inicio_pregunta > 40:
+        informacion = texto[:inicio_pregunta].strip()
+        pregunta = texto[inicio_pregunta:].strip()
+        if informacion and pregunta:
+            return [informacion, pregunta]
+
+    slug = str((proyecto or {}).get("slug") or "").lower()
+    if slug == "cascata":
+        cta = "¿Quieres recibir más información o agendar primero el recorrido virtual 360°?"
+    else:
+        cta = (
+            "¿Qué te gustaría hacer: recibir más información, agendar una visita "
+            "o programar una llamada?"
+        )
+    return [texto, cta]
+
+
 def _respuesta_operativa_visita(
     mensaje: str,
     proyecto: dict | None,
