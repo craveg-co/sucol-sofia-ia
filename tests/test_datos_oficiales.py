@@ -3,6 +3,7 @@ import unittest
 from agent.brain import (
     _corregir_disponibilidad,
     _construir_contexto_crm,
+    _procesar_respuesta_cliente,
     _quitar_mencion_asesor_no_solicitada,
     _respuesta_operativa_visita,
     _sanitizar_historial,
@@ -139,6 +140,39 @@ class DatosOficialesTest(unittest.TestCase):
         self.assertIn("48", respuesta)
         self.assertIn("72", respuesta)
         self.assertIn("agendar una visita", respuesta)
+
+    def test_reemplaza_fragmento_para_el_proyecto(self):
+        respuesta = _procesar_respuesta_cliente(
+            "Para el proyecto",
+            "Dame información del proyecto Bora",
+            {"slug": "bora", "nombre": "Bora"},
+            [
+                {"area_m2": 48, "precio_total": 28142985},
+                {"area_m2": 145.18, "precio_total": 103230253},
+            ],
+            {"nombre": "Juliana Duque", "telefono": "+573170402005"},
+        )
+
+        self.assertNotEqual(respuesta, "Para el proyecto")
+        self.assertIn("Bora tiene 2 opciones disponibles", respuesta)
+        self.assertIn("48", respuesta)
+        self.assertIn("145.18", respuesta)
+        self.assertIn("precios desde $28,142,985", respuesta)
+        self.assertIn("agendar una visita", respuesta)
+
+    def test_filtro_de_asesora_no_puede_dejar_respuesta_fragmentada(self):
+        respuesta = _procesar_respuesta_cliente(
+            "Para el proyecto\n\n"
+            "Tu asesora Juliana Duque (+573170402005) puede darte más información.",
+            "Dame información del proyecto Bora",
+            {"slug": "bora", "nombre": "Bora"},
+            [{"area_m2": 48, "precio_total": 28142985}],
+            {"nombre": "Juliana Duque", "telefono": "+573170402005"},
+        )
+
+        self.assertNotIn("Juliana", respuesta)
+        self.assertNotIn("Para el proyecto", respuesta)
+        self.assertIn("Bora tiene 1 opciones disponibles", respuesta)
 
 
 if __name__ == "__main__":

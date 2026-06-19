@@ -758,6 +758,66 @@ def _corregir_disponibilidad(
     )
 
 
+_PATRON_RESPUESTA_INCOMPLETA = re.compile(
+    r"\b(para|sobre|del|de|el|la|los|las|proyecto|informaci[oó]n)\s*$",
+    re.IGNORECASE,
+)
+
+
+def _respuesta_resumen_crm(
+    proyecto: dict | None,
+    lotes: list[dict],
+) -> str:
+    """Construye un resumen factual cuando la salida del modelo queda incompleta."""
+    nombre = (proyecto or {}).get("nombre") or "este proyecto"
+
+    if lotes:
+        areas_numericas = sorted(
+            {
+                float(lote["area_m2"])
+                for lote in lotes
+                if lote.get("area_m2") is not None
+            }
+        )
+        precios = [
+            float(lote["precio_total"])
+            for lote in lotes
+            if lote.get("precio_total") is not None
+        ]
+
+        detalles = [f"{len(lotes)} opciones disponibles registradas"]
+        if areas_numericas:
+            area_min = f"{areas_numericas[0]:g}"
+            area_max = f"{areas_numericas[-1]:g}"
+            if area_min == area_max:
+                detalles.append(f"de {area_min} m²")
+            else:
+                detalles.append(f"con áreas entre {area_min} y {area_max} m²")
+        if precios:
+            detalles.append(f"con precios desde ${min(precios):,.0f}")
+
+        return (
+            f"{nombre} tiene {', '.join(detalles)} según el inventario actual. "
+            "Puedo ampliarte características y financiación, o agendar una visita, "
+            "llamada o cita virtual. ¿Qué deseas conocer primero?"
+        )
+
+    return (
+        f"Puedo darte la información oficial disponible de {nombre} y ayudarte a agendar "
+        "una visita, llamada o cita virtual. ¿Qué aspecto quieres conocer primero?"
+    )
+
+
+def _respuesta_es_incompleta(respuesta: str) -> bool:
+    texto = re.sub(r"\s+", " ", respuesta or "").strip()
+    if len(texto) < 45:
+        return True
+    if _PATRON_RESPUESTA_INCOMPLETA.search(texto):
+        return True
+    palabras = re.findall(r"\w+", texto, re.UNICODE)
+    return len(palabras) < 8
+
+
 def _procesar_respuesta_cliente(
     respuesta: str,
     mensaje_cliente: str,
@@ -772,14 +832,11 @@ def _procesar_respuesta_cliente(
         mensaje_cliente,
         asesor,
     )
-    if respuesta:
+    if respuesta and not _respuesta_es_incompleta(respuesta):
         return respuesta
 
-    nombre = (proyecto or {}).get("nombre") or "el proyecto"
-    return (
-        f"Puedo ayudarte directamente con la información de {nombre} y agendar una visita, "
-        "llamada o cita virtual. ¿Qué prefieres?"
-    )
+    logger.error(f"Respuesta incompleta reemplazada: {respuesta!r}")
+    return _respuesta_resumen_crm(proyecto, lotes)
 
 
 def _respuesta_operativa_visita(
