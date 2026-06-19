@@ -7,6 +7,7 @@ y un prompt genérico de bienvenida cuando el cliente aún no tiene proyecto asi
 """
 
 import os
+import re
 import yaml
 import logging
 import httpx
@@ -132,7 +133,10 @@ client = _GeminiCompatClient()
 _KNOWLEDGE_DIR = "knowledge"
 
 
-def _cargar_knowledge(proyecto_slug: str | None = None) -> str:
+def _cargar_knowledge(
+    proyecto_slug: str | None = None,
+    proyecto: dict | None = None,
+) -> str:
     """
     Carga el conocimiento comercial en dos capas:
     1. knowledge/global.md            — siempre (empresa, directorio, directrices)
@@ -169,6 +173,11 @@ def _cargar_knowledge(proyecto_slug: str | None = None) -> str:
                 logger.debug(f"Knowledge: global + {normalizado}.md ({len(partes[1]) if len(partes) > 1 else 0} chars proyecto)")
             except (OSError, IOError) as e:
                 logger.warning(f"No se pudo leer {ruta_proyecto}: {e}")
+        elif proyecto and proyecto.get("system_prompt"):
+            partes.append(str(proyecto["system_prompt"]).strip())
+            logger.warning(
+                f"Sin ficha local para '{proyecto_slug}' — usando system_prompt del CRM como respaldo"
+            )
         else:
             logger.warning(f"Sin ficha para proyecto '{proyecto_slug}' — usando solo global.md")
     else:
@@ -209,7 +218,10 @@ def _mensaje_fallback() -> str:
     )
 
 
-def _construir_prompt_base(proyecto_slug: str | None = None) -> str:
+def _construir_prompt_base(
+    proyecto_slug: str | None = None,
+    proyecto: dict | None = None,
+) -> str:
     """
     Construye el system prompt base combinando:
     1. config/prompts.yaml           — identidad y reglas de comportamiento de Sofía
@@ -217,7 +229,7 @@ def _construir_prompt_base(proyecto_slug: str | None = None) -> str:
     3. knowledge/proyectos/[slug].md — ficha del proyecto (si se conoce)
     """
     persona = _prompt_base_yaml()
-    knowledge = _cargar_knowledge(proyecto_slug)
+    knowledge = _cargar_knowledge(proyecto_slug, proyecto)
     if knowledge:
         return persona + "\n\n---\n\n" + knowledge
     return persona
@@ -265,9 +277,28 @@ def _construir_contexto_crm(
     lotes: list[dict],
     asesor: dict | None = None,
     agendamientos: list[dict] | None = None,
+    proyecto: dict | None = None,
 ) -> str:
     """Construye el bloque de contexto CRM completo para inyectar al system prompt."""
     partes = []
+
+    if proyecto:
+        partes.append("## DATOS OFICIALES ACTUALES DEL PROYECTO — PRIORIDAD MÁXIMA")
+        partes.append(f"- Proyecto: {proyecto.get('nombre') or proyecto.get('slug')}")
+        if proyecto.get("ubicacion"):
+            partes.append(f"- Ubicación oficial: {proyecto['ubicacion']}")
+        if proyecto.get("direccion_visita"):
+            partes.append(f"- Dirección oficial para visitas: {proyecto['direccion_visita']}")
+        else:
+            partes.append("- Dirección oficial para visitas: NO REGISTRADA")
+        if proyecto.get("google_maps_url"):
+            partes.append(f"- Google Maps oficial: {proyecto['google_maps_url']}")
+        if proyecto.get("indicaciones_visita"):
+            partes.append(f"- Indicaciones oficiales: {proyecto['indicaciones_visita']}")
+        partes.append(
+            "REGLA: estos datos operativos del CRM prevalecen sobre la ficha, el historial "
+            "y cualquier conocimiento general. Nunca completes ni deduzcas una dirección."
+        )
 
     if lead:
         partes.append("## Información del cliente en el CRM")
@@ -323,18 +354,47 @@ def _construir_contexto_crm(
 
     if lotes:
         partes.append("\n## Lotes disponibles en este proyecto (datos exactos del CRM)")
-        partes.append("Usa esta información para precios y áreas específicas. Si hay contradicción con la ficha del proyecto, prevalece esta tabla:")
+        partes.append(
+            "Esta información es dinámica y prevalece sobre cantidades, áreas, precios "
+            "y disponibilidad escritos en cualquier ficha estática."
+        )
+        partes.append(f"- Total de registros disponibles: {len(lotes)}")
+
+        resumen_areas: dict[str, dict] = {}
         for lote in lotes:
-            linea = f"- Lote {lote.get('codigo', 'S/N')}"
-            if lote.get("area_m2"):
-                linea += f" | {lote['area_m2']} m²"
-            if lote.get("precio_total"):
-                linea += f" | Precio: ${lote['precio_total']:,.0f}"
-            if lote.get("separacion_inicial"):
-                linea += f" | Separación: ${lote['separacion_inicial']:,.0f}"
-            if lote.get("cuotas_cantidad") and lote.get("cuota_valor"):
-                linea += f" | {lote['cuotas_cantidad']} cuotas de ${lote['cuota_valor']:,.0f}"
+            area = lote.get("area_m2")
+            clave = str(area) if area is not None else "Área no registrada"
+            grupo = resumen_areas.setdefault(
+                clave,
+                {"cantidad": 0, "precios": []},
+            )
+            grupo["cantidad"] += 1
+            if lote.get("precio_total") is not None:
+                grupo["precios"].append(lote["precio_total"])
+
+        def _orden_area(item):
+            try:
+                return (0, float(item[0]))
+            except (TypeError, ValueError):
+                return (1, item[0])
+
+        grupos_ordenados = sorted(resumen_areas.items(), key=_orden_area)
+        for area, grupo in grupos_ordenados[:30]:
+            linea = f"- {area} m²: {grupo['cantidad']} disponible(s)"
+            precios = grupo["precios"]
+            if precios:
+                minimo = min(precios)
+                maximo = max(precios)
+                if minimo == maximo:
+                    linea += f" | Precio CRM: ${minimo:,.0f}"
+                else:
+                    linea += f" | Rango CRM: ${minimo:,.0f} a ${maximo:,.0f}"
             partes.append(linea)
+        if len(grupos_ordenados) > 30:
+            partes.append(
+                f"- Hay {len(grupos_ordenados) - 30} áreas adicionales no incluidas por brevedad. "
+                "No inventes sus datos."
+            )
     # Si el CRM no tiene lotes en tabla, Sofía usa la ficha del proyecto en knowledge/ como fuente de verdad.
     # NO se agrega ningún mensaje de "no hay unidades" — ese dato viene de la ficha.
 
@@ -481,7 +541,7 @@ _TOOL_CONFIRMAR_CITA = {
 }
 
 
-def _reglas_finales(asesor: dict | None) -> str:
+def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
     """
     Bloque de reglas inyectado al FINAL del system prompt para que prevalezcan
     sobre cualquier instrucción anterior que pueda estar desactualizada.
@@ -498,6 +558,15 @@ def _reglas_finales(asesor: dict | None) -> str:
         "sistema que no sea el CRM de Sucol. Esos sistemas ya no existen.",
         "- NO digas que 'no tienes acceso al CRM' ni que 'no puedes consultar datos'. "
         "Toda la información del cliente y del asesor ya está en tu contexto.",
+        "- FUENTES: usa únicamente los DATOS OFICIALES ACTUALES DEL PROYECTO, los lotes "
+        "del CRM y la ficha de conocimiento cargada. El historial sirve para entender la "
+        "conversación, pero NUNCA es una fuente para confirmar hechos.",
+        "- PROHIBIDO INVENTAR: no deduzcas ni completes direcciones, ciudades, teléfonos, "
+        "precios, áreas, disponibilidad, fechas, amenidades, enlaces o condiciones de pago.",
+        "- Si un dato exacto no aparece en las fuentes oficiales, responde: "
+        "\"No tengo ese dato exacto registrado. Puedo confirmarlo con el equipo de SUCOL.\"",
+        "- Si una respuesta anterior del historial contradice los datos oficiales actuales, "
+        "corrígela de forma explícita y usa solamente el dato oficial.",
         "- Si el cliente pide el telefono, WhatsApp, correo o contacto de un asesor por nombre "
         "especifico, usa la herramienta consultar_asesor_por_nombre antes de responder.",
         "- La fecha de hoy es: " + _fecha_colombia(),
@@ -508,7 +577,95 @@ def _reglas_finales(asesor: dict | None) -> str:
             f"- El teléfono del asesor asignado es {asesor['telefono']}. "
             "Si el cliente lo pide, dáselo directamente sin agregar advertencias ni excusas."
         )
+    if proyecto:
+        direccion = proyecto.get("direccion_visita")
+        maps_url = proyecto.get("google_maps_url")
+        if direccion:
+            lineas.append(
+                f"- La ÚNICA dirección autorizada para visitas de este proyecto es: {direccion}."
+            )
+        else:
+            lineas.append(
+                "- Este proyecto NO tiene una dirección de visita registrada. No proporciones ninguna."
+            )
+        if maps_url:
+            lineas.append(f"- El ÚNICO enlace autorizado de ubicación es: {maps_url}.")
     return "\n".join(lineas)
+
+
+_PATRON_DIRECCION = re.compile(
+    r"\b(carrera|cra\.?|calle|cl\.?|transversal|diagonal|avenida|av\.?|"
+    r"oficina|local)\b|#",
+    re.IGNORECASE,
+)
+
+
+def _numeros_direccion(texto: str) -> set[str]:
+    return set(re.findall(r"\d+", texto or ""))
+
+
+def _direccion_coincide_con_oficial(texto: str, proyecto: dict | None) -> bool:
+    """
+    Valida direcciones urbanas exactas.
+
+    Las ubicaciones generales por vía o kilómetro pertenecen a la ficha comercial y
+    no se comparan contra la dirección del punto de atención.
+    """
+    if not _PATRON_DIRECCION.search(texto or ""):
+        return True
+    direccion = (proyecto or {}).get("direccion_visita") or ""
+    if not direccion:
+        return False
+    numeros_oficiales = _numeros_direccion(direccion)
+    numeros_respuesta = _numeros_direccion(texto)
+    return bool(numeros_oficiales) and numeros_oficiales.issubset(numeros_respuesta)
+
+
+def _sanitizar_historial(
+    historial: list[dict],
+    proyecto: dict | None,
+) -> list[dict]:
+    """
+    Elimina respuestas previas del asistente que contienen direcciones no respaldadas
+    por el CRM. Evita que una alucinación guardada se convierta en falsa fuente.
+    """
+    limpio = []
+    for mensaje in historial:
+        contenido = mensaje.get("content", "")
+        if (
+            mensaje.get("role") == "assistant"
+            and _PATRON_DIRECCION.search(contenido)
+            and not _direccion_coincide_con_oficial(contenido, proyecto)
+        ):
+            logger.warning("Historial: dirección no oficial descartada del contexto")
+            continue
+        limpio.append(mensaje)
+    return limpio
+
+
+def _validar_respuesta_oficial(
+    respuesta: str,
+    proyecto: dict | None,
+) -> str:
+    """Impide enviar una dirección que no coincida con el dato oficial del CRM."""
+    if _direccion_coincide_con_oficial(respuesta, proyecto):
+        return respuesta
+
+    nombre = (proyecto or {}).get("nombre") or "este proyecto"
+    direccion = (proyecto or {}).get("direccion_visita")
+    maps_url = (proyecto or {}).get("google_maps_url")
+    logger.error(f"Respuesta bloqueada por dirección no oficial: {respuesta[:180]}")
+
+    if not direccion:
+        return (
+            f"No tengo una dirección de visita oficial registrada para {nombre}. "
+            "Puedo confirmarla con el equipo de SUCOL antes de que te desplaces."
+        )
+
+    respuesta_segura = f"La dirección oficial registrada para visitar {nombre} es {direccion}."
+    if maps_url:
+        respuesta_segura += f" Puedes guiarte con Google Maps: {maps_url}"
+    return respuesta_segura
 
 
 async def generar_respuesta_con_tools(
@@ -520,6 +677,7 @@ async def generar_respuesta_con_tools(
     asesor: dict | None = None,
     agendamientos: list[dict] | None = None,
     proyecto_slug: str | None = None,
+    proyecto: dict | None = None,
 ) -> str:
     """
     Genera respuesta con soporte de tool_use.
@@ -541,16 +699,26 @@ async def generar_respuesta_con_tools(
     if not es_inicio and (not mensaje or len(mensaje.strip()) < 2):
         return _mensaje_fallback()
 
-    prompt_final = _construir_prompt_base(proyecto_slug)
+    prompt_final = _construir_prompt_base(proyecto_slug, proyecto)
 
-    contexto_crm = _construir_contexto_crm(contexto_lead, lotes_disponibles or [], asesor, agendamientos or [])
+    contexto_crm = _construir_contexto_crm(
+        contexto_lead,
+        lotes_disponibles or [],
+        asesor,
+        agendamientos or [],
+        proyecto,
+    )
     if contexto_crm:
         prompt_final += "\n\n" + contexto_crm
 
     # Reglas finales de prioridad máxima — siempre al final para prevalecer sobre el prompt base
-    prompt_final += _reglas_finales(asesor)
+    prompt_final += _reglas_finales(asesor, proyecto)
 
-    mensajes: list = [{"role": m["role"], "content": m["content"]} for m in historial]
+    historial_limpio = _sanitizar_historial(historial, proyecto)
+    mensajes: list = [
+        {"role": m["role"], "content": m["content"]}
+        for m in historial_limpio
+    ]
     if es_inicio:
         # Instrucción interna: Sofia genera el primer mensaje sin esperar al cliente
         mensajes.append({
@@ -641,7 +809,7 @@ async def generar_respuesta_con_tools(
             respuesta = response.content[0].text
             logger.info(f"Respuesta generada ({response.usage.input_tokens} in / {response.usage.output_tokens} out)")
 
-        return respuesta
+        return _validar_respuesta_oficial(respuesta, proyecto)
 
     except Exception as e:
         logger.error(f"Error Gemini API (con tools): {e}")
@@ -656,6 +824,7 @@ async def generar_respuesta(
     asesor: dict | None = None,
     agendamientos: list[dict] | None = None,
     proyecto_slug: str | None = None,
+    proyecto: dict | None = None,
 ) -> str:
     """
     Genera una respuesta usando Gemini API.
@@ -665,15 +834,25 @@ async def generar_respuesta(
     if not mensaje or len(mensaje.strip()) < 2:
         return _mensaje_fallback()
 
-    prompt_final = _construir_prompt_base(proyecto_slug)
+    prompt_final = _construir_prompt_base(proyecto_slug, proyecto)
 
-    contexto_crm = _construir_contexto_crm(contexto_lead, lotes_disponibles or [], asesor, agendamientos or [])
+    contexto_crm = _construir_contexto_crm(
+        contexto_lead,
+        lotes_disponibles or [],
+        asesor,
+        agendamientos or [],
+        proyecto,
+    )
     if contexto_crm:
         prompt_final += "\n\n" + contexto_crm
 
-    prompt_final += _reglas_finales(asesor)
+    prompt_final += _reglas_finales(asesor, proyecto)
 
-    mensajes = [{"role": m["role"], "content": m["content"]} for m in historial]
+    historial_limpio = _sanitizar_historial(historial, proyecto)
+    mensajes = [
+        {"role": m["role"], "content": m["content"]}
+        for m in historial_limpio
+    ]
     mensajes.append({"role": "user", "content": mensaje})
 
     try:
@@ -685,7 +864,7 @@ async def generar_respuesta(
         )
         respuesta = response.content[0].text
         logger.info(f"Respuesta generada ({response.usage.input_tokens} in / {response.usage.output_tokens} out)")
-        return respuesta
+        return _validar_respuesta_oficial(respuesta, proyecto)
 
     except Exception as e:
         logger.error(f"Error Gemini API: {e}")

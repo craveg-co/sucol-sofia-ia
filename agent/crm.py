@@ -437,8 +437,13 @@ async def obtener_lotes_disponibles(proyecto_slug: str) -> list[dict]:
         async with _crm_session() as session:
             result = await session.execute(
                 text("""
-                    SELECT l.codigo, l.area_m2, l.precio_total,
-                           l.separacion_inicial, l.cuotas_cantidad, l.cuota_valor, l.estado
+                    SELECT l.codigo,
+                           l.area_m2,
+                           COALESCE(l.precio_final, l.precio) AS precio_total,
+                           l.valor_cuota_inicial AS cuota_inicial,
+                           l.no_cuotas AS cuotas_cantidad,
+                           l.valor_cuota AS cuota_valor,
+                           l.estado
                     FROM lotes l
                     INNER JOIN proyectos p ON p.id = l.proyecto_id
                     WHERE p.slug = :slug AND LOWER(l.estado) = 'disponible'

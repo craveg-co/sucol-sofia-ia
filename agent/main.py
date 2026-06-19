@@ -213,6 +213,7 @@ async def iniciar_conversacion(payload: LeadIdPayload):
             asesor=asesor,
             agendamientos=[],
             proyecto_slug=proyecto_slug,
+            proyecto=proyecto,
         )
     except Exception as e:
         logger.error(f"Error generando mensaje inicial para {tel_norm}: {e}")
@@ -323,6 +324,7 @@ async def webhook_handler(request: Request):
                     asesor=asesor,
                     agendamientos=agendamientos,
                     proyecto_slug=proyecto_slug,
+                    proyecto=proyecto,
                 )
             except Exception as e:
                 logger.error(f"Error generando respuesta para {telefono}: {e}")
