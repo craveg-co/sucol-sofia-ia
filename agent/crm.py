@@ -56,6 +56,52 @@ async def obtener_proyecto_por_slug(slug: str) -> dict | None:
         return None
 
 
+async def obtener_proyecto_desde_lead(lead: dict) -> dict | None:
+    """Lee el proyecto asociado a un lead, sin usar contactos_whatsapp."""
+    if not _crm_disponible() or not lead:
+        return None
+
+    proyecto_id = lead.get("proyecto_id")
+    proyecto_valor = lead.get("proyecto")
+
+    try:
+        async with _crm_session() as session:
+            if proyecto_id:
+                result = await session.execute(
+                    text("SELECT * FROM proyectos WHERE id = :id AND activo = true LIMIT 1"),
+                    {"id": proyecto_id},
+                )
+                row = result.mappings().first()
+                if row:
+                    return dict(row)
+
+            if proyecto_valor:
+                result = await session.execute(
+                    text("""
+                        SELECT *
+                        FROM proyectos
+                        WHERE activo = true
+                          AND (
+                            slug = :proyecto
+                            OR LOWER(nombre) = LOWER(:proyecto)
+                            OR LOWER(REPLACE(nombre, ' ', '_')) = LOWER(:proyecto)
+                            OR LOWER(REPLACE(nombre, ' ', '-')) = LOWER(:proyecto)
+                          )
+                        LIMIT 1
+                    """),
+                    {"proyecto": str(proyecto_valor).strip()},
+                )
+                row = result.mappings().first()
+                if row:
+                    return dict(row)
+
+        logger.warning(f"CRM obtener_proyecto_desde_lead: sin proyecto para lead={lead.get('id')}")
+        return None
+    except Exception as e:
+        logger.error(f"CRM obtener_proyecto_desde_lead: {e}")
+        return None
+
+
 async def obtener_proyecto_por_telefono(telefono: str) -> dict | None:
     """
     Detecta el proyecto asignado a un teléfono con esta prioridad:

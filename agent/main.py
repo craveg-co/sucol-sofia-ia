@@ -23,6 +23,7 @@ from agent.memory import inicializar_db, guardar_mensaje, obtener_historial
 from agent.providers import obtener_proveedor
 from agent.crm import (
     obtener_proyecto_por_telefono,
+    obtener_proyecto_desde_lead,
     detectar_proyecto_en_mensaje,
     obtener_lead,
     obtener_lead_por_id,
@@ -198,10 +199,17 @@ async def iniciar_conversacion(payload: LeadIdPayload):
 
     tel_norm = "+" + telefono if not telefono.startswith("+") else telefono
 
-    proyecto = await _detectar_proyecto(tel_norm, "")
+    proyecto = await obtener_proyecto_desde_lead(lead)
     proyecto_slug = proyecto.get("slug") if proyecto else None
     if not proyecto:
         raise HTTPException(status_code=422, detail="No se pudo detectar el proyecto del lead")
+    try:
+        await crear_o_actualizar_contacto_whatsapp(
+            tel_norm,
+            {"proyecto_slug": proyecto["slug"]},
+        )
+    except Exception as e:
+        logger.warning(f"No se pudo actualizar proyecto activo para {tel_norm}: {e}")
     nombre_proyecto = proyecto.get("nombre") or proyecto_slug
     if not nombre_proyecto:
         raise HTTPException(status_code=422, detail="Proyecto sin nombre para plantilla")
