@@ -200,39 +200,39 @@ async def iniciar_conversacion(payload: LeadIdPayload):
 
     proyecto = await _detectar_proyecto(tel_norm, "")
     proyecto_slug = proyecto.get("slug") if proyecto else None
-    lotes = await _gather_uno(obtener_lotes_disponibles(proyecto_slug)) if proyecto_slug else []
-    asesor = await obtener_asesor_de_lead(tel_norm) if lead else None
-
+    if not proyecto:
+        raise HTTPException(status_code=422, detail="No se pudo detectar el proyecto del lead")
+    nombre_proyecto = proyecto.get("nombre") or proyecto_slug
+    if not nombre_proyecto:
+        raise HTTPException(status_code=422, detail="Proyecto sin nombre para plantilla")
+    enviar_plantilla = getattr(proveedor, "enviar_plantilla_primer_contacto_sofia", None)
+    if not enviar_plantilla:
+        raise HTTPException(status_code=500, detail="Proveedor no soporta plantilla de primer contacto")
     try:
-        respuesta = await generar_respuesta_con_tools(
-            mensaje="__INICIAR__",
-            historial=[],
-            contexto_lead=lead,
-            lotes_disponibles=lotes,
-            telefono=tel_norm,
-            asesor=asesor,
-            agendamientos=[],
-            proyecto_slug=proyecto_slug,
-            proyecto=proyecto,
-        )
+        enviado = await enviar_plantilla(telefono, nombre_proyecto)
     except Exception as e:
-        logger.error(f"Error generando mensaje inicial para {tel_norm}: {e}")
-        raise HTTPException(status_code=500, detail="Error generando mensaje inicial")
-
+        logger.error(f"Error enviando plantilla inicial a {tel_norm}: {e}")
+        raise HTTPException(status_code=502, detail="Error enviando plantilla por WhatsApp")
+    if not enviado:
+        raise HTTPException(status_code=502, detail="Meta rechazo el envio de la plantilla")
+    mensaje_plantilla = (
+        f"Hola, soy *Sofia*, la asistente virtual de *{nombre_proyecto}* "
+        "de SUCOL Soluciones Urbanisticas.\n\n"
+        "Vi que tuviste interes en nuestro proyecto y estoy aqui para ayudarte "
+        "con toda la informacion.\n\n"
+        "¿Te puedo contar mas sobre este proyecto?"
+    )
     try:
-        await guardar_mensaje(tel_norm, "assistant", respuesta)
+        await guardar_mensaje(tel_norm, "assistant", mensaje_plantilla)
     except Exception as e:
-        logger.warning(f"Error guardando mensaje inicial en memoria: {e}")
-
-    try:
-        await proveedor.enviar_mensaje(telefono, respuesta)
-    except Exception as e:
-        logger.error(f"Error enviando mensaje inicial a {tel_norm}: {e}")
-        raise HTTPException(status_code=502, detail="Error enviando mensaje por WhatsApp")
-
-    logger.info(f"Conversación iniciada con {tel_norm} — proyecto={proyecto_slug}")
-    return {"status": "ok", "telefono": tel_norm, "proyecto": proyecto_slug}
-
+        logger.warning(f"Error guardando plantilla inicial en memoria: {e}")
+    logger.info(f"Plantilla inicial enviada a {tel_norm} - proyecto={proyecto_slug}")
+    return {
+        "status": "ok",
+        "telefono": tel_norm,
+        "proyecto": proyecto_slug,
+        "plantilla": "sofia_primer_contacto_proyecto",
+    }
 
 @app.post("/incontactable")
 async def marcar_lead_incontactable(payload: LeadIdPayload):
