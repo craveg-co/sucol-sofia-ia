@@ -110,11 +110,27 @@ class ProveedorMeta(ProveedorWhatsApp):
                 numero_bot = metadata.get("display_phone_number", "")
                 phone_number_id = metadata.get("phone_number_id", "")
                 for msg in value.get("messages", []):
-                    if msg.get("type") == "interactive" and msg.get("interactive", {}).get("type") == "nfm_reply":
+                    msg_type = msg.get("type")
+                    interactive = msg.get("interactive", {})
+
+                    if msg_type == "interactive" and interactive.get("type") == "nfm_reply":
                         await self._guardar_advisor_survey(msg)
                         continue
 
-                    if msg.get("type") != "text":
+                    texto = ""
+                    if msg_type == "text":
+                        texto = msg.get("text", {}).get("body", "")
+                    elif msg_type == "button":
+                        button = msg.get("button", {})
+                        texto = button.get("text") or button.get("payload") or ""
+                    elif msg_type == "interactive" and interactive.get("type") == "button_reply":
+                        button_reply = interactive.get("button_reply", {})
+                        texto = button_reply.get("title") or button_reply.get("id") or ""
+                    elif msg_type == "interactive" and interactive.get("type") == "list_reply":
+                        list_reply = interactive.get("list_reply", {})
+                        texto = list_reply.get("title") or list_reply.get("id") or ""
+
+                    if not texto:
                         continue
                     remitente = msg.get("from", "")
                     # Es propio si el remitente coincide con el número del bot
@@ -125,7 +141,7 @@ class ProveedorMeta(ProveedorWhatsApp):
                     )
                     mensajes.append(MensajeEntrante(
                         telefono=remitente,
-                        texto=msg.get("text", {}).get("body", ""),
+                        texto=texto,
                         mensaje_id=msg.get("id", ""),
                         es_propio=es_propio,
                         timestamp=int(msg.get("timestamp", 0) or 0),
