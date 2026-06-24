@@ -12,6 +12,7 @@ import yaml
 import logging
 import httpx
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 from types import SimpleNamespace
 from dotenv import load_dotenv
 
@@ -130,7 +131,8 @@ class _GeminiCompatClient:
 
 client = _GeminiCompatClient()
 
-_KNOWLEDGE_DIR = "knowledge"
+_BASE_DIR = Path(__file__).resolve().parent.parent
+_KNOWLEDGE_DIR = _BASE_DIR / "knowledge"
 
 
 def _cargar_knowledge(
@@ -148,10 +150,10 @@ def _cargar_knowledge(
     partes = []
 
     # Capa 1: conocimiento global (siempre)
-    ruta_global = os.path.join(_KNOWLEDGE_DIR, "global.md")
-    if os.path.isfile(ruta_global):
+    ruta_global = _KNOWLEDGE_DIR / "global.md"
+    if ruta_global.is_file():
         try:
-            with open(ruta_global, "r", encoding="utf-8") as f:
+            with ruta_global.open("r", encoding="utf-8") as f:
                 contenido = f.read().strip()
                 if contenido:
                     partes.append(contenido)
@@ -163,10 +165,10 @@ def _cargar_knowledge(
     # Capa 2: ficha del proyecto específico (solo si se conoce)
     if proyecto_slug:
         normalizado = proyecto_slug.lower().replace("-", "_").replace(" ", "_")
-        ruta_proyecto = os.path.join(_KNOWLEDGE_DIR, "proyectos", f"{normalizado}.md")
-        if os.path.isfile(ruta_proyecto):
+        ruta_proyecto = _KNOWLEDGE_DIR / "proyectos" / f"{normalizado}.md"
+        if ruta_proyecto.is_file():
             try:
-                with open(ruta_proyecto, "r", encoding="utf-8") as f:
+                with ruta_proyecto.open("r", encoding="utf-8") as f:
                     contenido = f.read().strip()
                     if contenido:
                         partes.append(contenido)
@@ -634,6 +636,7 @@ def _sanitizar_historial(
     Elimina respuestas previas del asistente que contienen direcciones no respaldadas
     por el CRM. Evita que una alucinación guardada se convierta en falsa fuente.
     """
+    historial = _recortar_historial_desde_inicio_proyecto(historial, proyecto)
     limpio = []
     for mensaje in historial:
         contenido = mensaje.get("content", "")
@@ -646,6 +649,57 @@ def _sanitizar_historial(
             continue
         limpio.append(mensaje)
     return limpio
+
+
+def _normalizar_texto(texto: str) -> str:
+    texto = (texto or "").lower()
+    reemplazos = {
+        "á": "a",
+        "é": "e",
+        "í": "i",
+        "ó": "o",
+        "ú": "u",
+        "ü": "u",
+        "ñ": "n",
+    }
+    for origen, destino in reemplazos.items():
+        texto = texto.replace(origen, destino)
+    return re.sub(r"\s+", " ", texto).strip()
+
+
+def _recortar_historial_desde_inicio_proyecto(
+    historial: list[dict],
+    proyecto: dict | None,
+) -> list[dict]:
+    """
+    Si el mismo telefono tuvo conversaciones de otros proyectos, usa solo el tramo
+    posterior a la ultima plantilla inicial del proyecto actual.
+    """
+    if not historial or not proyecto:
+        return historial
+
+    nombre = _normalizar_texto(str(proyecto.get("nombre") or ""))
+    slug = _normalizar_texto(str(proyecto.get("slug") or "").replace("_", " ").replace("-", " "))
+    candidatos = [valor for valor in (nombre, slug) if valor]
+    if not candidatos:
+        return historial
+
+    inicio = None
+    for i, mensaje in enumerate(historial):
+        if mensaje.get("role") != "assistant":
+            continue
+        contenido = _normalizar_texto(mensaje.get("content", ""))
+        if "asistente virtual" in contenido and any(valor in contenido for valor in candidatos):
+            inicio = i
+
+    if inicio is not None and inicio > 0:
+        logger.info(
+            "Historial recortado desde plantilla del proyecto actual: "
+            f"{len(historial)} -> {len(historial[inicio:])}"
+        )
+        return historial[inicio:]
+
+    return historial
 
 
 def _validar_respuesta_oficial(
