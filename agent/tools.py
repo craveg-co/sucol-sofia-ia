@@ -11,9 +11,11 @@ import yaml
 import logging
 import httpx
 import aiosmtplib
-from datetime import datetime
+from datetime import datetime, date
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+
+from agent.providers import obtener_proveedor
 
 from agent.crm import (
     crear_agendamiento, crear_lead, crear_o_actualizar_sofia_lead,
@@ -24,6 +26,8 @@ from agent.crm import (
 )
 
 logger = logging.getLogger("agentkit")
+
+_proveedor = obtener_proveedor()
 
 # ── Configuración de correo SES ───────────────────────────────────────────────
 _SES_HOST = os.getenv("SES_SMTP_HOST", "email-smtp.us-east-1.amazonaws.com")
@@ -279,6 +283,7 @@ async def _confirmar_cita_edge(
     fecha_cita: str,
     hora_cita: str,
     resumen: str,
+    video_url: str = "",
 ) -> str:
     supabase_url = os.getenv("SUPABASE_URL", "").rstrip("/")
     supabase_key = os.getenv("SUPABASE_SERVICE_KEY", "")
@@ -317,6 +322,41 @@ async def _confirmar_cita_edge(
     if not data.get("ok"):
         logger.error(f"confirmar_cita edge respuesta no OK: {data}")
         return "No pude agendar la cita en este momento. Por favor intenta de nuevo en unos minutos."
+
+    # ── Notificar al asesor via plantilla de WhatsApp ─────────────────────────
+    try:
+        asesor = await obtener_asesor_de_lead(telefono)
+        asesor_nombre = (asesor.get("nombre") if asesor else None) or "Asesor"
+        asesor_telefono = asesor.get("telefono") if asesor else ""
+        if asesor_telefono:
+            _MESES = {
+                1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
+                5: "mayo", 6: "junio", 7: "julio", 8: "agosto",
+                9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre",
+            }
+            d = date.fromisoformat(fecha_cita)
+            fecha_legible = f"{d.day} de {_MESES[d.month]} de {d.year}"
+            enviado = await _proveedor.enviar_plantilla_cita_asesor(
+                telefono_asesor=asesor_telefono,
+                asesor_nombre=asesor_nombre,
+                tipo_cita=tipo_cita,
+                fecha_cita=fecha_legible,
+                hora_cita=hora_cita,
+                nombre_cliente=nombre_cliente,
+                telefono_cliente=telefono,
+                resumen_conversacion=resumen,
+                video_url=video_url or "",
+            )
+            logger.info(
+                f"Plantilla cita enviada a asesor {asesor_nombre} "
+                f"({asesor_telefono}): {'ok' if enviado else 'fallo'}"
+            )
+        else:
+            logger.warning(
+                f"No se pudo notificar al asesor: sin telefono para lead {telefono}"
+            )
+    except Exception as e:
+        logger.error(f"Error notificando al asesor por plantilla: {e}")
 
     cita = data.get("cita") or {}
     lineas = [
@@ -367,6 +407,7 @@ async def confirmar_cita(
         fecha_cita=fecha_cita,
         hora_cita=hora_cita,
         resumen=resumen,
+        video_url=video_url or "",
     )
 
     lead = await obtener_lead(telefono)
