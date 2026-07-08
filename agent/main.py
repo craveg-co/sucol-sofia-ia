@@ -33,6 +33,7 @@ from agent.crm import (
     crear_o_actualizar_contacto_whatsapp,
     marcar_incontactable,
     marcar_sofia_lead_respondio,
+    marcar_sofia_lead_segundo_contacto,
 )
 
 load_dotenv()
@@ -242,6 +243,87 @@ async def iniciar_conversacion(payload: LeadIdPayload):
         "plantilla": "sofia_primer_contacto_proyecto",
     }
 
+
+@app.post("/segundo-contacto")
+async def enviar_segundo_contacto(payload: LeadIdPayload):
+    """
+    Llamado desde el CRM cuando pasan 48h sin respuesta al primer contacto.
+    Envia la plantilla aprobada de recordatorio y registra el evento.
+    """
+    lead = await obtener_lead_por_id(payload.lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead no encontrado")
+
+    telefono = lead.get("telefono_principal")
+    if not telefono:
+        raise HTTPException(status_code=422, detail="Lead sin telefono")
+
+    tel_norm = "+" + telefono if not telefono.startswith("+") else telefono
+
+    proyecto = await obtener_proyecto_desde_lead(lead)
+    proyecto_slug = proyecto.get("slug") if proyecto else None
+    if not proyecto:
+        raise HTTPException(status_code=422, detail="No se pudo detectar el proyecto del lead")
+
+    try:
+        await crear_o_actualizar_contacto_whatsapp(
+            tel_norm,
+            {"proyecto_slug": proyecto["slug"]},
+        )
+    except Exception as e:
+        logger.warning(f"No se pudo actualizar proyecto activo para {tel_norm}: {e}")
+
+    nombre_proyecto = proyecto.get("nombre") or proyecto_slug
+    if not nombre_proyecto:
+        raise HTTPException(status_code=422, detail="Proyecto sin nombre para plantilla")
+
+    nombre_cliente = (
+        lead.get("nombre_completo")
+        or lead.get("nombre")
+        or lead.get("primer_nombre")
+        or ""
+    ).strip()
+    nombre_cliente = nombre_cliente.split()[0] if nombre_cliente else "de nuevo"
+
+    enviar_plantilla = getattr(proveedor, "enviar_plantilla_segundo_contacto_sofia", None)
+    if not enviar_plantilla:
+        raise HTTPException(status_code=500, detail="Proveedor no soporta plantilla de segundo contacto")
+
+    try:
+        enviado = await enviar_plantilla(telefono, nombre_cliente, nombre_proyecto)
+    except Exception as e:
+        logger.error(f"Error enviando plantilla segundo contacto a {tel_norm}: {e}")
+        raise HTTPException(status_code=502, detail="Error enviando plantilla por WhatsApp")
+
+    if not enviado:
+        raise HTTPException(status_code=502, detail="Meta rechazo el envio de la plantilla")
+
+    mensaje_plantilla = (
+        f"Hola {nombre_cliente} 👋 Soy Sofía de {nombre_proyecto}.\n"
+        "Hace unos días te compartí información sobre nuestro proyecto y quería retomarte.\n"
+        "Tenemos unidades disponibles y te puedo enviar en este momento precios actualizados, "
+        "áreas y opciones de financiación directa sin banco.\n"
+        "Una sola pregunta para orientarte mejor: ¿buscas algo para vivir, para invertir, o las dos cosas?"
+    )
+    try:
+        await guardar_mensaje(tel_norm, "assistant", mensaje_plantilla)
+    except Exception as e:
+        logger.warning(f"Error guardando plantilla segundo contacto en memoria: {e}")
+
+    try:
+        await marcar_sofia_lead_segundo_contacto(payload.lead_id)
+    except Exception as e:
+        logger.warning(f"Error marcando segundo contacto para lead={payload.lead_id}: {e}")
+
+    logger.info(f"Plantilla segundo contacto enviada a {tel_norm} - proyecto={proyecto_slug}")
+    return {
+        "status": "ok",
+        "telefono": tel_norm,
+        "proyecto": proyecto_slug,
+        "plantilla": "sofia_segundo_contacto_proyecto",
+    }
+
+
 @app.post("/incontactable")
 async def marcar_lead_incontactable(payload: LeadIdPayload):
     """
@@ -304,8 +386,8 @@ async def webhook_handler(request: Request):
                 obtener_agendamientos_lead(telefono),
             )
 
-            # Primer mensaje del lead → marcar respondio en sofia_leads (silencioso)
-            if not historial and lead and lead.get("id"):
+            # Respuesta del lead -> marcar respondio en sofia_leads si aplica.
+            if lead and lead.get("id"):
                 asyncio.create_task(marcar_sofia_lead_respondio(str(lead["id"])))
 
             # ── Paso 3: detectar proyecto (contactos_whatsapp → leads → mensaje)

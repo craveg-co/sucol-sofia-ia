@@ -663,6 +663,18 @@ async def marcar_sofia_lead_respondio(lead_id: str):
     )
 
 
+async def marcar_sofia_lead_segundo_contacto(lead_id: str):
+    """
+    Marca que Sofia envio el segundo contacto proactivo.
+    Solo actualiza desde primer_contacto para evitar retroceder estados.
+    """
+    await _actualizar_sofia_leads_etapa(
+        lead_id, "segundo_contacto",
+        solo_si_etapa_en=("primer_contacto",),
+        campos_extra={"fecha_segundo_contacto": "NOW()"},
+    )
+
+
 async def _actualizar_sofia_leads_etapa(
     lead_id: str,
     etapa: str,
