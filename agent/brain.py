@@ -576,6 +576,15 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
         "corrígela de forma explícita y usa solamente el dato oficial.",
         "- Si el cliente pide el telefono, WhatsApp, correo o contacto de un asesor por nombre "
         "especifico, usa la herramienta consultar_asesor_por_nombre antes de responder.",
+        "- CAMBIO DE INTERES: si el cliente menciona otra zona, barrio, ciudad, municipio "
+        "o tipo de lote distinto al proyecto actual, no insistas en el proyecto actual.",
+        "- Si no tienes un proyecto exacto para esa zona en el contexto, di: "
+        "\"No tengo registrado en este chat un proyecto exactamente en esa zona\" y pregunta "
+        "si busca lote urbano pequeno, lote campestre o si considera otro municipio cercano.",
+        "- No digas \"no tenemos proyectos disponibles en X\" a menos que una fuente oficial "
+        "lo confirme explicitamente.",
+        "- Si el cliente dice \"no\", \"no me interesa\" o \"busco otra zona\", no vuelvas "
+        "a ofrecer el mismo proyecto en la siguiente respuesta.",
         "- La fecha de hoy es: " + _fecha_colombia(),
         "- Usa esa fecha exacta siempre que necesites referenciar el día de hoy.",
     ]
@@ -965,6 +974,78 @@ def _respuesta_operativa_visita(
     )
 
 
+_PATRON_ZONA_EXPLICITA = re.compile(
+    r"\b(poblado\s+campestre|cali|jamund[ií]|ginebra|potrerito|rozo|palmira|"
+    r"candelaria|yumbo|valle\s+del\s+cauca)\b",
+    re.IGNORECASE,
+)
+
+_PATRON_RECHAZO_CORTO = re.compile(
+    r"^\s*(no|nop|no gracias|no me interesa|busco otra zona|otra zona)\s*[.!?]*\s*$",
+    re.IGNORECASE,
+)
+
+
+def _texto_proyecto_para_matching(proyecto: dict | None) -> str:
+    if not proyecto:
+        return ""
+    partes = [
+        proyecto.get("nombre"),
+        proyecto.get("slug"),
+        proyecto.get("ubicacion"),
+        proyecto.get("direccion_visita"),
+        proyecto.get("indicaciones_visita"),
+    ]
+    return _normalizar_texto(" ".join(str(p) for p in partes if p))
+
+
+def _ultimo_asistente(historial: list[dict]) -> str:
+    for mensaje in reversed(historial or []):
+        if mensaje.get("role") == "assistant":
+            return mensaje.get("content", "")
+    return ""
+
+
+def _respuesta_cambio_interes(
+    mensaje: str,
+    historial: list[dict],
+    proyecto: dict | None,
+) -> str | None:
+    """Responde sin IA cuando el cliente se sale claramente del proyecto activo."""
+    texto = _normalizar_texto(mensaje or "")
+    if not texto:
+        return None
+
+    if _PATRON_RECHAZO_CORTO.search(mensaje or ""):
+        ultimo = _normalizar_texto(_ultimo_asistente(historial))
+        nombre = _normalizar_texto(str((proyecto or {}).get("nombre") or ""))
+        if nombre and nombre in ultimo:
+            return (
+                "Entiendo. Para no enviarte información que no te sirve, "
+                "¿lo buscas solo en esa zona o te sirve una alternativa cercana?"
+            )
+        return None
+
+    zonas = [m.group(0) for m in _PATRON_ZONA_EXPLICITA.finditer(mensaje or "")]
+    if not zonas or not proyecto:
+        return None
+
+    proyecto_texto = _texto_proyecto_para_matching(proyecto)
+    zonas_fuera = [
+        zona for zona in zonas
+        if _normalizar_texto(zona) not in proyecto_texto
+    ]
+    if not zonas_fuera:
+        return None
+
+    zona_legible = zonas_fuera[0].strip()
+    return (
+        f"No tengo registrado en este chat un proyecto exactamente en {zona_legible}. "
+        "¿Buscas un lote urbano pequeño o también considerarías un lote campestre "
+        "en otro municipio cercano?"
+    )
+
+
 async def generar_respuesta_con_tools(
     mensaje: str,
     historial: list[dict],
@@ -995,6 +1076,10 @@ async def generar_respuesta_con_tools(
 
     if not es_inicio and (not mensaje or len(mensaje.strip()) < 2):
         return _mensaje_fallback()
+
+    respuesta_cambio = _respuesta_cambio_interes(mensaje, historial, proyecto)
+    if respuesta_cambio:
+        return respuesta_cambio
 
     respuesta_operativa = _respuesta_operativa_visita(mensaje, proyecto)
     if respuesta_operativa:
@@ -1141,6 +1226,10 @@ async def generar_respuesta(
     """
     if not mensaje or len(mensaje.strip()) < 2:
         return _mensaje_fallback()
+
+    respuesta_cambio = _respuesta_cambio_interes(mensaje, historial, proyecto)
+    if respuesta_cambio:
+        return respuesta_cambio
 
     respuesta_operativa = _respuesta_operativa_visita(mensaje, proyecto)
     if respuesta_operativa:
