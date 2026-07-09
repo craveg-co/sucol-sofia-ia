@@ -585,6 +585,11 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
         "lo confirme explicitamente.",
         "- Si el cliente dice \"no\", \"no me interesa\" o \"busco otra zona\", no vuelvas "
         "a ofrecer el mismo proyecto en la siguiente respuesta.",
+        "- CIERRE: si el cliente dice \"gracias\", \"muchas gracias\", \"con la informacion "
+        "actual esta bien\", \"no muchas gracias\" o \"por ahora no\", responde breve y "
+        "amable, sin ofrecer visita, llamada, cita virtual ni mas informacion.",
+        "- Si el cliente pregunta por medidas, areas o tamanos de lotes, responde directamente "
+        "con el rango o areas oficiales disponibles. No cambies a una invitacion generica.",
         "- La fecha de hoy es: " + _fecha_colombia(),
         "- Usa esa fecha exacta siempre que necesites referenciar el día de hoy.",
     ]
@@ -981,7 +986,14 @@ _PATRON_ZONA_EXPLICITA = re.compile(
 )
 
 _PATRON_RECHAZO_CORTO = re.compile(
-    r"^\s*(no|nop|no gracias|no me interesa|busco otra zona|otra zona)\s*[.!?]*\s*$",
+    r"^\s*(no|nop|no gracias|no muchas gracias|no me interesa|busco otra zona|otra zona)\s*[.!?]*\s*$",
+    re.IGNORECASE,
+)
+
+_PATRON_CIERRE_CONVERSACION = re.compile(
+    r"^\s*(gracias|muchas gracias|mil gracias|listo gracias|ok gracias|"
+    r"con la informaci[oó]n( actual)? (est[aá] )?bien|"
+    r"con eso (est[aá] )?bien|por ahora no|no muchas gracias|no gracias)\s*[.!?]*\s*$",
     re.IGNORECASE,
 )
 
@@ -1046,6 +1058,38 @@ def _respuesta_cambio_interes(
     )
 
 
+def _respuesta_cierre_conversacion(
+    mensaje: str,
+    historial: list[dict],
+    contexto_lead: dict | None = None,
+) -> str | None:
+    """Cierra sin CTA cuando el cliente agradece o dice que no necesita mas."""
+    if not _PATRON_CIERRE_CONVERSACION.search(mensaje or ""):
+        return None
+
+    nombre = ""
+    if contexto_lead:
+        nombre = (
+            contexto_lead.get("nombre_completo")
+            or contexto_lead.get("nombre")
+            or contexto_lead.get("primer_nombre")
+            or ""
+        )
+        nombre = str(nombre).strip().split()[0] if nombre else ""
+
+    cierres_previos = 0
+    for msg in historial or []:
+        if msg.get("role") != "user":
+            continue
+        if _PATRON_CIERRE_CONVERSACION.search(msg.get("content", "")):
+            cierres_previos += 1
+
+    saludo = f", {nombre}" if nombre else ""
+    if cierres_previos:
+        return f"Con gusto{saludo}. Quedo atenta si más adelante quieres retomar."
+    return f"Con gusto{saludo}. Quedo atenta si necesitas algo más adelante."
+
+
 async def generar_respuesta_con_tools(
     mensaje: str,
     historial: list[dict],
@@ -1076,6 +1120,10 @@ async def generar_respuesta_con_tools(
 
     if not es_inicio and (not mensaje or len(mensaje.strip()) < 2):
         return _mensaje_fallback()
+
+    respuesta_cierre = _respuesta_cierre_conversacion(mensaje, historial, contexto_lead)
+    if respuesta_cierre:
+        return respuesta_cierre
 
     respuesta_cambio = _respuesta_cambio_interes(mensaje, historial, proyecto)
     if respuesta_cambio:
@@ -1226,6 +1274,10 @@ async def generar_respuesta(
     """
     if not mensaje or len(mensaje.strip()) < 2:
         return _mensaje_fallback()
+
+    respuesta_cierre = _respuesta_cierre_conversacion(mensaje, historial, contexto_lead)
+    if respuesta_cierre:
+        return respuesta_cierre
 
     respuesta_cambio = _respuesta_cambio_interes(mensaje, historial, proyecto)
     if respuesta_cambio:
