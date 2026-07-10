@@ -132,6 +132,12 @@ class ProveedorMeta(ProveedorWhatsApp):
 
                     if not texto:
                         continue
+                    referral = msg.get("referral") or {}
+                    referencia = " ".join(
+                        str(referral.get(campo) or "").strip()
+                        for campo in ("headline", "body", "source_url")
+                        if referral.get(campo)
+                    )
                     remitente = msg.get("from", "")
                     # Es propio si el remitente coincide con el número del bot
                     es_propio = bool(
@@ -145,6 +151,7 @@ class ProveedorMeta(ProveedorWhatsApp):
                         mensaje_id=msg.get("id", ""),
                         es_propio=es_propio,
                         timestamp=int(msg.get("timestamp", 0) or 0),
+                        referencia=referencia,
                     ))
         return mensajes
 

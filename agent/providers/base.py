@@ -19,6 +19,7 @@ class MensajeEntrante:
     mensaje_id: str     # ID único del mensaje
     es_propio: bool     # True si lo envió el agente (se ignora)
     timestamp: int = 0  # Unix epoch segundos (0 = desconocido)
+    referencia: str = ""  # Contexto interno del anuncio de Meta, no visible al cliente
 
 
 class ProveedorWhatsApp(ABC):

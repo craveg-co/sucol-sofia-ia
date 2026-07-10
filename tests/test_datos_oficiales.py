@@ -1,11 +1,15 @@
 import unittest
 
 from agent.brain import (
+    _cargar_knowledge,
     _corregir_disponibilidad,
     _construir_contexto_crm,
     _procesar_respuesta_cliente,
     _quitar_mencion_asesor_no_solicitada,
     _respuesta_rango_horario,
+    _respuesta_cambio_interes,
+    _respuesta_recursos_proyecto,
+    _respuesta_referencia_publicidad,
     _respuesta_sin_proyecto,
     _resumen_cita_oficial,
     _respuesta_operativa_visita,
@@ -24,6 +28,75 @@ PROYECTO = {
 
 
 class DatosOficialesTest(unittest.TestCase):
+    def test_vi_publicidad_no_inventa_detalles(self):
+        respuesta = _respuesta_referencia_publicidad(
+            "Vi la publicidad",
+            {"slug": "buenavista", "nombre": "Buenavista"},
+        )
+
+        self.assertIn("publicidad de Buenavista", respuesta)
+        self.assertNotIn("km", respuesta.lower())
+        self.assertNotIn("$", respuesta)
+
+    def test_en_el_enlace_pide_aclaracion(self):
+        respuesta = _respuesta_referencia_publicidad(
+            "En el enlace",
+            {"slug": "buenavista", "nombre": "Buenavista"},
+        )
+
+        self.assertIn("qué información del enlace", respuesta.lower())
+        self.assertNotIn("Cra.", respuesta)
+
+    def test_buenavista_jamundi_no_se_trata_como_cambio_de_zona(self):
+        proyecto = {"slug": "buenavista", "nombre": "Buenavista"}
+
+        respuesta = _respuesta_cambio_interes(
+            "Buenavista Jamundí",
+            [],
+            proyecto,
+        )
+
+        self.assertIsNone(respuesta)
+
+    def test_ubicacion_buenavista_sale_de_la_ficha_oficial(self):
+        respuesta = _respuesta_recursos_proyecto(
+            "Quiero la ubicación exacta",
+            {
+                "slug": "buenavista",
+                "nombre": "Buenavista",
+                "direccion_visita": PROYECTO["direccion_visita"],
+                "google_maps_url": PROYECTO["google_maps_url"],
+            },
+        )
+
+        self.assertIn("sur de Jamundí", respuesta)
+        self.assertNotIn(PROYECTO["direccion_visita"], respuesta)
+        self.assertNotIn(PROYECTO["google_maps_url"], respuesta)
+        self.assertIn("enlace oficial del terreno", respuesta)
+
+    def test_imagenes_sin_galeria_no_fuerzan_una_cita(self):
+        respuesta = _respuesta_recursos_proyecto(
+            "Quiero ver imágenes del proyecto",
+            {"slug": "buenavista", "nombre": "Buenavista"},
+        )
+
+        self.assertIn("no tengo una galería oficial", respuesta.lower())
+        self.assertNotIn("agend", respuesta.lower())
+
+    def test_imagenes_y_ubicacion_se_responden_juntas(self):
+        respuesta = _respuesta_recursos_proyecto(
+            "Quiero ver imágenes del lugar exacto y la ubicación exacta",
+            {"slug": "buenavista", "nombre": "Buenavista"},
+        )
+
+        self.assertIn("galería oficial", respuesta)
+        self.assertIn("sur de Jamundí", respuesta)
+
+    def test_slug_vientos_de_ginebra_carga_ficha_local(self):
+        contenido = _cargar_knowledge("vientos_de_ginebra")
+
+        self.assertIn("VIENTOS DE GINEBRA", contenido)
+
     def test_sin_proyecto_no_inventa_un_nombre(self):
         respuesta = _respuesta_sin_proyecto("Hola")
 

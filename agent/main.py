@@ -391,7 +391,10 @@ async def webhook_handler(request: Request):
                 asyncio.create_task(marcar_sofia_lead_respondio(str(lead["id"])))
 
             # ── Paso 3: detectar proyecto (contactos_whatsapp → leads → mensaje)
-            proyecto = await _detectar_proyecto(telefono, msg.texto)
+            texto_deteccion = " ".join(
+                parte for parte in (msg.texto, msg.referencia) if parte
+            )
+            proyecto = await _detectar_proyecto(telefono, texto_deteccion)
 
             # ── Paso 4: lotes del proyecto (requiere saber el proyecto)
             proyecto_slug = proyecto.get("slug") if proyecto else None

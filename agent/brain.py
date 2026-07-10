@@ -165,7 +165,19 @@ def _cargar_knowledge(
     # Capa 2: ficha del proyecto específico (solo si se conoce)
     if proyecto_slug:
         normalizado = proyecto_slug.lower().replace("-", "_").replace(" ", "_")
-        ruta_proyecto = _KNOWLEDGE_DIR / "proyectos" / f"{normalizado}.md"
+        candidatos = [
+            normalizado,
+            normalizado.replace("_de_", "_"),
+            normalizado.replace("_del_", "_"),
+        ]
+        ruta_proyecto = next(
+            (
+                _KNOWLEDGE_DIR / "proyectos" / f"{candidato}.md"
+                for candidato in dict.fromkeys(candidatos)
+                if (_KNOWLEDGE_DIR / "proyectos" / f"{candidato}.md").is_file()
+            ),
+            _KNOWLEDGE_DIR / "proyectos" / f"{normalizado}.md",
+        )
         if ruta_proyecto.is_file():
             try:
                 with ruta_proyecto.open("r", encoding="utf-8") as f:
@@ -186,6 +198,27 @@ def _cargar_knowledge(
         logger.debug("Knowledge: solo global.md (proyecto no detectado aún)")
 
     return "\n\n---\n\n".join(partes)
+
+
+def _dato_ficha_proyecto(proyecto: dict | None, campo: str) -> str:
+    """Lee un dato de la tabla Markdown de la ficha oficial del proyecto."""
+    slug = str((proyecto or {}).get("slug") or "").strip()
+    if not slug:
+        return ""
+    contenido = _cargar_knowledge(slug, proyecto)
+    patron = re.compile(
+        rf"^\|\s*\*\*{re.escape(campo)}\*\*\s*\|\s*(.+?)\s*\|\s*$",
+        re.IGNORECASE | re.MULTILINE,
+    )
+    coincidencia = patron.search(contenido)
+    return coincidencia.group(1).strip() if coincidencia else ""
+
+
+def _ubicacion_oficial_proyecto(proyecto: dict | None) -> str:
+    return str((proyecto or {}).get("ubicacion") or "").strip() or _dato_ficha_proyecto(
+        proyecto,
+        "Ubicación",
+    )
 
 
 def _cargar_config_prompts() -> dict:
@@ -287,19 +320,21 @@ def _construir_contexto_crm(
     if proyecto:
         partes.append("## DATOS OFICIALES ACTUALES DEL PROYECTO — PRIORIDAD MÁXIMA")
         partes.append(f"- Proyecto: {proyecto.get('nombre') or proyecto.get('slug')}")
-        if proyecto.get("ubicacion"):
-            partes.append(f"- Ubicación oficial: {proyecto['ubicacion']}")
+        ubicacion = _ubicacion_oficial_proyecto(proyecto)
+        if ubicacion:
+            partes.append(f"- Ubicación oficial: {ubicacion}")
         if proyecto.get("direccion_visita"):
-            partes.append(f"- Dirección oficial para visitas: {proyecto['direccion_visita']}")
+            partes.append(f"- Punto de atención o visita autorizado: {proyecto['direccion_visita']}")
         else:
-            partes.append("- Dirección oficial para visitas: NO REGISTRADA")
+            partes.append("- Punto de atención o visita autorizado: NO REGISTRADO")
         if proyecto.get("google_maps_url"):
-            partes.append(f"- Google Maps oficial: {proyecto['google_maps_url']}")
+            partes.append(f"- Google Maps del punto de atención o visita: {proyecto['google_maps_url']}")
         if proyecto.get("indicaciones_visita"):
             partes.append(f"- Indicaciones oficiales: {proyecto['indicaciones_visita']}")
         partes.append(
             "REGLA: estos datos operativos del CRM prevalecen sobre la ficha, el historial "
-            "y cualquier conocimiento general. Nunca completes ni deduzcas una dirección."
+            "y cualquier conocimiento general. No confundas el punto de atención con la "
+            "ubicación física del proyecto. Nunca completes ni deduzcas una dirección."
         )
 
     if lead:
@@ -742,9 +777,29 @@ def _validar_respuesta_oficial(
 
 
 _PATRON_PREGUNTA_VISITA = re.compile(
-    r"\b(d[oó]nde|direcci[oó]n|ubicaci[oó]n|c[oó]mo\s+llegar|"
-    r"c[oó]mo\s+voy|a\s+d[oó]nde|para\s+una\s+visita|ir\s+a\s+ver|"
-    r"visitar|visita\s+presencial)\b",
+    r"\b(direcci[oó]n\s+(?:para|de)\s+(?:la\s+)?visita|c[oó]mo\s+llegar\s+(?:a\s+)?(?:la\s+)?visita|"
+    r"c[oó]mo\s+voy|para\s+una\s+visita|ir\s+a\s+ver|visitar|visita\s+presencial)\b",
+    re.IGNORECASE,
+)
+
+_PATRON_UBICACION_PROYECTO = re.compile(
+    r"\b(d[oó]nde\s+(?:queda|est[aá])|ubicaci[oó]n(?:\s+exacta)?|"
+    r"direcci[oó]n\s+del\s+proyecto|lugar\s+exacto)\b",
+    re.IGNORECASE,
+)
+
+_PATRON_IMAGENES_PROYECTO = re.compile(
+    r"\b(im[aá]genes?|fotos?|galer[ií]a|ver\s+(?:el\s+)?(?:lugar|proyecto))\b",
+    re.IGNORECASE,
+)
+
+_PATRON_VIO_PUBLICIDAD = re.compile(
+    r"^\s*(?:yo\s+)?vi\s+(?:la\s+)?(?:publicidad|pauta|anuncio)\s*[.!?]*\s*$",
+    re.IGNORECASE,
+)
+
+_PATRON_REFERENCIA_ENLACE = re.compile(
+    r"^\s*en\s+(?:el\s+)?(?:enlace|link|anuncio|publicidad)\s*[.!?]*\s*$",
     re.IGNORECASE,
 )
 
@@ -983,10 +1038,85 @@ def _respuesta_operativa_visita(
         return respuesta
 
     return (
-        f"No hay una dirección oficial de visita registrada para {nombre}. "
+        f"No hay un punto autorizado de visita registrado para {nombre}. "
         "Antes de que te desplaces, puedo solicitar al equipo de SUCOL que confirme "
         "el punto autorizado."
     )
+
+
+def _urls_recursos_proyecto(proyecto: dict | None) -> list[str]:
+    """Obtiene únicamente enlaces de material comercial registrados en el CRM."""
+    urls: list[str] = []
+    for campo in ("galeria_url", "imagenes_url", "brochure_url", "sitio_web_url"):
+        valor = (proyecto or {}).get(campo)
+        valores = valor if isinstance(valor, list) else [valor]
+        for item in valores:
+            item = str(item or "").strip()
+            if item.startswith(("https://", "http://")) and item not in urls:
+                urls.append(item)
+    return urls[:3]
+
+
+def _respuesta_recursos_proyecto(
+    mensaje: str,
+    proyecto: dict | None,
+) -> str | None:
+    """Responde imágenes y ubicación sin generación libre ni direcciones inferidas."""
+    pide_imagenes = bool(_PATRON_IMAGENES_PROYECTO.search(mensaje or ""))
+    pide_ubicacion = bool(_PATRON_UBICACION_PROYECTO.search(mensaje or ""))
+    if not proyecto or not (pide_imagenes or pide_ubicacion):
+        return None
+
+    nombre = proyecto.get("nombre") or "este proyecto"
+    partes = []
+    if pide_imagenes:
+        urls = _urls_recursos_proyecto(proyecto)
+        if urls:
+            partes.append(f"Puedes ver el material oficial de {nombre} aquí: {' '.join(urls)}")
+        else:
+            partes.append(
+                f"Aún no tengo una galería oficial de {nombre} registrada para enviarte por este chat."
+            )
+
+    if pide_ubicacion:
+        ubicacion = _ubicacion_oficial_proyecto(proyecto)
+        if ubicacion:
+            partes.append(f"La ubicación general oficial es: {ubicacion}.")
+        else:
+            partes.append("No tengo registrada la ubicación exacta del proyecto.")
+
+        mapa_proyecto = str(
+            proyecto.get("google_maps_proyecto_url")
+            or proyecto.get("ubicacion_maps_url")
+            or ""
+        ).strip()
+        if mapa_proyecto.startswith(("https://", "http://")):
+            partes.append(f"Mapa oficial del proyecto: {mapa_proyecto}")
+        else:
+            partes.append(
+                "Todavía no tengo registrado el enlace oficial del terreno para compartirte la ubicación exacta."
+            )
+
+    return " ".join(partes)
+
+
+def _respuesta_referencia_publicidad(
+    mensaje: str,
+    proyecto: dict | None,
+) -> str | None:
+    """Aclara referencias breves al anuncio sin asumir que preguntan una dirección."""
+    nombre = (proyecto or {}).get("nombre") or "el proyecto"
+    if _PATRON_VIO_PUBLICIDAD.search(mensaje or ""):
+        return (
+            f"Entiendo, viste la publicidad de {nombre}. "
+            "¿Quieres confirmar precios, áreas disponibles o ubicación?"
+        )
+    if _PATRON_REFERENCIA_ENLACE.search(mensaje or ""):
+        return (
+            f"Entiendo. ¿Qué información del enlace de {nombre} quieres confirmar: "
+            "precios, áreas, imágenes o ubicación?"
+        )
+    return None
 
 
 _PATRON_ZONA_EXPLICITA = re.compile(
@@ -1085,6 +1215,7 @@ def _texto_proyecto_para_matching(proyecto: dict | None) -> str:
         proyecto.get("ubicacion"),
         proyecto.get("direccion_visita"),
         proyecto.get("indicaciones_visita"),
+        _ubicacion_oficial_proyecto(proyecto),
     ]
     return _normalizar_texto(" ".join(str(p) for p in partes if p))
 
@@ -1104,6 +1235,13 @@ def _respuesta_cambio_interes(
     """Responde sin IA cuando el cliente se sale claramente del proyecto activo."""
     texto = _normalizar_texto(mensaje or "")
     if not texto:
+        return None
+
+    nombre_actual = _normalizar_texto(str((proyecto or {}).get("nombre") or ""))
+    slug_actual = _normalizar_texto(
+        str((proyecto or {}).get("slug") or "").replace("_", " ").replace("-", " ")
+    )
+    if any(valor and valor in texto for valor in (nombre_actual, slug_actual)):
         return None
 
     if _PATRON_RECHAZO_CORTO.search(mensaje or ""):
@@ -1213,6 +1351,14 @@ async def generar_respuesta_con_tools(
     respuesta_cambio = _respuesta_cambio_interes(mensaje, historial, proyecto)
     if respuesta_cambio:
         return respuesta_cambio
+
+    respuesta_referencia = _respuesta_referencia_publicidad(mensaje, proyecto)
+    if respuesta_referencia:
+        return respuesta_referencia
+
+    respuesta_recursos = _respuesta_recursos_proyecto(mensaje, proyecto)
+    if respuesta_recursos:
+        return respuesta_recursos
 
     respuesta_operativa = _respuesta_operativa_visita(mensaje, proyecto)
     if respuesta_operativa:
@@ -1379,6 +1525,14 @@ async def generar_respuesta(
     respuesta_cambio = _respuesta_cambio_interes(mensaje, historial, proyecto)
     if respuesta_cambio:
         return respuesta_cambio
+
+    respuesta_referencia = _respuesta_referencia_publicidad(mensaje, proyecto)
+    if respuesta_referencia:
+        return respuesta_referencia
+
+    respuesta_recursos = _respuesta_recursos_proyecto(mensaje, proyecto)
+    if respuesta_recursos:
+        return respuesta_recursos
 
     respuesta_operativa = _respuesta_operativa_visita(mensaje, proyecto)
     if respuesta_operativa:
