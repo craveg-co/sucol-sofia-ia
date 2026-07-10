@@ -5,6 +5,9 @@ from agent.brain import (
     _construir_contexto_crm,
     _procesar_respuesta_cliente,
     _quitar_mencion_asesor_no_solicitada,
+    _respuesta_rango_horario,
+    _respuesta_sin_proyecto,
+    _resumen_cita_oficial,
     _respuesta_operativa_visita,
     _sanitizar_historial,
     _validar_respuesta_oficial,
@@ -21,6 +24,44 @@ PROYECTO = {
 
 
 class DatosOficialesTest(unittest.TestCase):
+    def test_sin_proyecto_no_inventa_un_nombre(self):
+        respuesta = _respuesta_sin_proyecto("Hola")
+
+        self.assertIn("qué proyecto o zona", respuesta)
+        self.assertNotIn("Ciudadela del Río", respuesta)
+
+    def test_sin_proyecto_pide_identificarlo_antes_de_agendar(self):
+        respuesta = _respuesta_sin_proyecto("Programar una llamada")
+
+        self.assertIn("sobre cuál proyecto", respuesta)
+
+    def test_rango_horario_requiere_hora_exacta(self):
+        respuesta = _respuesta_rango_horario(
+            "Por favor llamarme viernes 10 de julio entre 8 y 9 am"
+        )
+
+        self.assertIsNotNone(respuesta)
+        self.assertIn("hora exacta", respuesta)
+
+    def test_resumen_cita_usa_proyecto_oficial(self):
+        resumen = _resumen_cita_oficial("Llamada", PROYECTO)
+
+        self.assertIn("Santa Elena", resumen)
+        self.assertNotIn("Ciudadela del Río", resumen)
+
+    def test_bloquea_nombre_de_proyecto_distinto_al_crm(self):
+        respuesta = _procesar_respuesta_cliente(
+            "Nuestro proyecto Ciudadela del Río tiene lotes desde 1.000 m².",
+            "Hola",
+            PROYECTO,
+            [],
+            None,
+        )
+
+        self.assertIn("Santa Elena", respuesta)
+        self.assertNotIn("Ciudadela del Río", respuesta)
+        self.assertNotIn("1.000", respuesta)
+
     def test_contexto_inyecta_direccion_y_mapa_oficiales(self):
         contexto = _construir_contexto_crm(None, [], proyecto=PROYECTO)
 

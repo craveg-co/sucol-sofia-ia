@@ -893,6 +893,16 @@ def _procesar_respuesta_cliente(
     lotes: list[dict],
     asesor: dict | None,
 ) -> str:
+    if _menciona_proyecto_distinto(respuesta, proyecto):
+        nombre = (proyecto or {}).get("nombre") or "el proyecto registrado"
+        logger.error(
+            "Respuesta bloqueada por nombre de proyecto no oficial: %s",
+            (respuesta or "")[:180],
+        )
+        return (
+            f"La información oficial que tengo asociada a este chat corresponde a {nombre}. "
+            "¿Qué deseas conocer sobre este proyecto?"
+        )
     respuesta = _validar_respuesta_oficial(respuesta, proyecto)
     respuesta = _corregir_disponibilidad(respuesta, lotes, proyecto)
     respuesta = _quitar_mencion_asesor_no_solicitada(
@@ -996,6 +1006,74 @@ _PATRON_CIERRE_CONVERSACION = re.compile(
     r"con eso (est[aá] )?bien|por ahora no|no muchas gracias|no gracias)\s*[.!?]*\s*$",
     re.IGNORECASE,
 )
+
+_PATRON_INTENCION_CITA = re.compile(
+    r"\b(agendar|programar|reservar|coordinar)\b.*\b(llamada|cita|visita|videollamada)\b|"
+    r"\b(llamada|cita|visita|videollamada)\b.*\b(agendar|programar|reservar|coordinar)\b",
+    re.IGNORECASE,
+)
+
+_PATRON_RANGO_HORARIO = re.compile(
+    r"\bentre\s+(?:las\s+)?\d{1,2}(?::\d{2})?\s*(?:a\.?\s*m\.?|p\.?\s*m\.?)?"
+    r"\s+(?:y|a|hasta)\s+(?:las\s+)?\d{1,2}(?::\d{2})?\s*(?:a\.?\s*m\.?|p\.?\s*m\.?)?\b",
+    re.IGNORECASE,
+)
+
+_PATRON_NOMBRE_DESPUES_DE_PROYECTO = re.compile(
+    r"\bproyecto[ \t]+(?:llamado[ \t]+)?"
+    r"([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÜÑáéíóúüñ-]*"
+    r"(?:[ \t]+(?:de|del|la|las|los|y|[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÜÑáéíóúüñ-]*)){0,4})"
+)
+
+
+def _respuesta_sin_proyecto(mensaje: str) -> str:
+    """Evita que el modelo complete un proyecto cuando el CRM no identificó uno."""
+    if _PATRON_INTENCION_CITA.search(mensaje or ""):
+        return (
+            "Claro. Antes de programarla necesito saber sobre cuál proyecto de SUCOL "
+            "quieres hablar. ¿Cuál proyecto o zona te interesa?"
+        )
+    return (
+        "Hola, soy Sofía de SUCOL. Para darte información correcta, "
+        "¿qué proyecto o zona te interesa?"
+    )
+
+
+def _respuesta_rango_horario(mensaje: str) -> str | None:
+    """Solicita una hora concreta para no elegir arbitrariamente dentro de un rango."""
+    if not _PATRON_RANGO_HORARIO.search(mensaje or ""):
+        return None
+    return (
+        "Perfecto. Para registrar la llamada necesito una hora exacta dentro de ese rango. "
+        "¿La programamos a las 8:00, 8:30 o 9:00?"
+    )
+
+
+def _menciona_proyecto_distinto(respuesta: str, proyecto: dict | None) -> bool:
+    """Detecta nombres presentados como proyecto que no coinciden con el CRM."""
+    nombre_oficial = _normalizar_texto(str((proyecto or {}).get("nombre") or ""))
+    if not nombre_oficial:
+        return bool(_PATRON_NOMBRE_DESPUES_DE_PROYECTO.search(respuesta or ""))
+
+    for coincidencia in _PATRON_NOMBRE_DESPUES_DE_PROYECTO.finditer(respuesta or ""):
+        candidato = _normalizar_texto(coincidencia.group(1))
+        if candidato in {"este", "el", "nuestro"}:
+            continue
+        if candidato not in nombre_oficial and nombre_oficial not in candidato:
+            return True
+    return False
+
+
+def _resumen_cita_oficial(
+    tipo_cita: str,
+    proyecto: dict | None,
+) -> str:
+    """Genera el resumen operativo sin aceptar hechos redactados por el modelo."""
+    nombre = str((proyecto or {}).get("nombre") or "").strip()
+    tipo = str(tipo_cita or "cita").strip().lower()
+    if nombre:
+        return f"El cliente solicitó programar una {tipo} sobre el proyecto {nombre}."
+    return f"El cliente solicitó programar una {tipo} con el equipo comercial de SUCOL."
 
 
 def _texto_proyecto_para_matching(proyecto: dict | None) -> str:
@@ -1121,6 +1199,13 @@ async def generar_respuesta_con_tools(
     if not es_inicio and (not mensaje or len(mensaje.strip()) < 2):
         return _mensaje_fallback()
 
+    if not proyecto:
+        return _respuesta_sin_proyecto(mensaje)
+
+    respuesta_rango = _respuesta_rango_horario(mensaje)
+    if respuesta_rango:
+        return respuesta_rango
+
     respuesta_cierre = _respuesta_cierre_conversacion(mensaje, historial, contexto_lead)
     if respuesta_cierre:
         return respuesta_cierre
@@ -1185,7 +1270,12 @@ async def generar_respuesta_con_tools(
             for tu in tool_uses:
                 if tu.name == "confirmar_cita":
                     try:
-                        resultado_tool = await confirmar_cita(telefono=telefono, **tu.input)
+                        datos_cita = dict(tu.input)
+                        datos_cita["resumen"] = _resumen_cita_oficial(
+                            datos_cita.get("tipo_cita", "cita"),
+                            proyecto,
+                        )
+                        resultado_tool = await confirmar_cita(telefono=telefono, **datos_cita)
                     except Exception as e:
                         logger.error(f"Error ejecutando confirmar_cita: {e}")
                         resultado_tool = "Hubo un problema al agendar la cita. Por favor intenta de nuevo."
@@ -1274,6 +1364,13 @@ async def generar_respuesta(
     """
     if not mensaje or len(mensaje.strip()) < 2:
         return _mensaje_fallback()
+
+    if not proyecto:
+        return _respuesta_sin_proyecto(mensaje)
+
+    respuesta_rango = _respuesta_rango_horario(mensaje)
+    if respuesta_rango:
+        return respuesta_rango
 
     respuesta_cierre = _respuesta_cierre_conversacion(mensaje, historial, contexto_lead)
     if respuesta_cierre:
