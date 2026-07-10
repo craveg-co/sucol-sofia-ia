@@ -57,6 +57,29 @@ _DEDUP_TTL = 300    # 5 minutos — alineado con la ventana de antigüedad
 _MSG_MAX_EDAD_SEG = 300
 
 
+def _es_mensaje_formulario_meta(texto: str) -> bool:
+    """
+    Detecta el texto automatico que Meta envia al crear un lead desde publicidad.
+    Ese mensaje no es una respuesta conversacional del cliente; el CRM ya dispara
+    la plantilla de apertura por /iniciar.
+    """
+    texto_limpio = (texto or "").strip()
+    if not texto_limpio:
+        return False
+
+    texto_norm = texto_limpio.lower()
+    tiene_intro_formulario = (
+        "completé el formulario" in texto_norm
+        or "complete el formulario" in texto_norm
+    )
+    campos_formulario = [
+        "full name:",
+        "phone number:",
+        "email:",
+    ]
+    return tiene_intro_formulario and sum(campo in texto_norm for campo in campos_formulario) >= 2
+
+
 def _ya_procesado(mensaje_id: str) -> bool:
     """True si este mensaje_id ya fue procesado en los últimos 5 minutos. Registra si es nuevo."""
     if not mensaje_id:
@@ -377,6 +400,13 @@ async def webhook_handler(request: Request):
             telefono = "+" + msg.telefono if not msg.telefono.startswith("+") else msg.telefono
 
             logger.info(f"Mensaje de {telefono}: {msg.texto}")
+
+            if _es_mensaje_formulario_meta(msg.texto):
+                logger.info(
+                    "Mensaje automatico de formulario Meta ignorado para evitar "
+                    f"doble primer contacto ({telefono}, id={msg.mensaje_id})"
+                )
+                continue
 
             # ── Paso 1, 2, 3 en paralelo: historial + lead + asesor + agendamientos
             historial, lead, asesor, agendamientos = await _gather(
