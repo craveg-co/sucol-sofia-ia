@@ -793,6 +793,30 @@ _PATRON_IMAGENES_PROYECTO = re.compile(
     re.IGNORECASE,
 )
 
+_PATRON_BROCHURE_PROYECTO = re.compile(
+    r"\b(brochure|brochur|broshur|cat[aá]logo|catalogo|pdf|folleto)\b",
+    re.IGNORECASE,
+)
+
+_BROCHURES_POR_SLUG = {
+    "buenavista": "https://drive.google.com/file/d/1K-tjU8z0iJuFr-e9hCSPhcoJxcE5xmt0/view?usp=share_link",
+    "vientos_de_ginebra": "https://drive.google.com/file/d/19OKqC1txQhXk3BEanYG3HjJ_LC-GUL9K/view?usp=share_link",
+    "vientos-de-ginebra": "https://drive.google.com/file/d/19OKqC1txQhXk3BEanYG3HjJ_LC-GUL9K/view?usp=share_link",
+    "bora": "https://drive.google.com/file/d/12PU5oGhKcxSK1rVag4CrMbQs34cAxW0C/view?usp=share_link",
+    "reservas_de_ilama": "https://drive.google.com/file/d/1VQgZ5CDTt4zsonxhsl_hqI063dwsZP4k/view?usp=share_link",
+    "reservas-de-ilama": "https://drive.google.com/file/d/1VQgZ5CDTt4zsonxhsl_hqI063dwsZP4k/view?usp=share_link",
+    "maloka_mallki": "https://drive.google.com/file/d/1giN-M_VfjKi64U1XJbaqtk3I8HdCs_IB/view?usp=share_link",
+    "maloka-mallki": "https://drive.google.com/file/d/1giN-M_VfjKi64U1XJbaqtk3I8HdCs_IB/view?usp=share_link",
+    "solares_del_cabuyal": "https://drive.google.com/file/d/1vr6BoXABZgt2IWXHSkHb-rvRwMmUZ3eA/view?usp=share_link",
+    "solares-del-cabuyal": "https://drive.google.com/file/d/1vr6BoXABZgt2IWXHSkHb-rvRwMmUZ3eA/view?usp=share_link",
+    "santa_elena": "https://drive.google.com/file/d/1poayGpz8G9jpnul0625nCjE2OUTHXVN1/view?usp=share_link",
+    "santa-elena": "https://drive.google.com/file/d/1poayGpz8G9jpnul0625nCjE2OUTHXVN1/view?usp=share_link",
+    "forestal_garden": "https://drive.google.com/file/d/1-gPUj_xkOud7f9It9BaQHAjDMJPUklwz/view?usp=share_link",
+    "forestal-garden": "https://drive.google.com/file/d/1-gPUj_xkOud7f9It9BaQHAjDMJPUklwz/view?usp=share_link",
+    "praderas_de_guachinte": "https://drive.google.com/file/d/1qNoawlq0wE3vSPJZmEbNtpQEU-gsKjaI/view?usp=share_link",
+    "praderas-de-guachinte": "https://drive.google.com/file/d/1qNoawlq0wE3vSPJZmEbNtpQEU-gsKjaI/view?usp=share_link",
+}
+
 _PATRON_VIO_PUBLICIDAD = re.compile(
     r"^\s*(?:yo\s+)?vi\s+(?:la\s+)?(?:publicidad|pauta|anuncio)\s*[.!?]*\s*$",
     re.IGNORECASE,
@@ -1057,6 +1081,21 @@ def _urls_recursos_proyecto(proyecto: dict | None) -> list[str]:
     return urls[:3]
 
 
+def _url_brochure_proyecto(proyecto: dict | None) -> str:
+    """Obtiene el brochure oficial desde CRM o desde el mapa local autorizado."""
+    brochure_crm = str((proyecto or {}).get("brochure_url") or "").strip()
+    if brochure_crm.startswith(("https://", "http://")):
+        return brochure_crm
+
+    slug = str((proyecto or {}).get("slug") or "").strip().lower()
+    slug_normalizado = slug.replace(" ", "_").replace("-", "_")
+    return (
+        _BROCHURES_POR_SLUG.get(slug)
+        or _BROCHURES_POR_SLUG.get(slug_normalizado)
+        or ""
+    )
+
+
 def _respuesta_recursos_proyecto(
     mensaje: str,
     proyecto: dict | None,
@@ -1064,11 +1103,21 @@ def _respuesta_recursos_proyecto(
     """Responde imágenes y ubicación sin generación libre ni direcciones inferidas."""
     pide_imagenes = bool(_PATRON_IMAGENES_PROYECTO.search(mensaje or ""))
     pide_ubicacion = bool(_PATRON_UBICACION_PROYECTO.search(mensaje or ""))
-    if not proyecto or not (pide_imagenes or pide_ubicacion):
+    pide_brochure = bool(_PATRON_BROCHURE_PROYECTO.search(mensaje or ""))
+    if not proyecto or not (pide_imagenes or pide_ubicacion or pide_brochure):
         return None
 
     nombre = proyecto.get("nombre") or "este proyecto"
     partes = []
+    if pide_brochure:
+        brochure_url = _url_brochure_proyecto(proyecto)
+        if brochure_url:
+            partes.append(f"Claro, te comparto el brochure de {nombre}: {brochure_url}")
+        else:
+            partes.append(
+                f"Aún no tengo un brochure oficial de {nombre} registrado para enviarte por este chat."
+            )
+
     if pide_imagenes:
         urls = _urls_recursos_proyecto(proyecto)
         if urls:

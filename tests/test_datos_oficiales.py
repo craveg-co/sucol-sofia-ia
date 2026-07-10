@@ -137,6 +137,33 @@ class DatosOficialesTest(unittest.TestCase):
         self.assertIn("galería oficial", respuesta)
         self.assertIn("sur de Jamundí", respuesta)
 
+    def test_brochure_buenavista_usa_link_local_autorizado(self):
+        respuesta = _respuesta_recursos_proyecto(
+            "Me compartes el brochure por favor",
+            {"slug": "buenavista", "nombre": "Buenavista"},
+        )
+
+        self.assertIn("brochure de Buenavista", respuesta)
+        self.assertIn("1K-tjU8z0iJuFr-e9hCSPhcoJxcE5xmt0", respuesta)
+
+    def test_brochure_prioriza_link_del_crm(self):
+        respuesta = _respuesta_recursos_proyecto(
+            "Tienes el PDF?",
+            {
+                "slug": "buenavista",
+                "nombre": "Buenavista",
+                "brochure_url": "https://sucol.co/brochure-oficial.pdf",
+            },
+        )
+
+        self.assertIn("https://sucol.co/brochure-oficial.pdf", respuesta)
+        self.assertNotIn("1K-tjU8z0iJuFr-e9hCSPhcoJxcE5xmt0", respuesta)
+
+    def test_brochure_sin_proyecto_no_responde_recurso(self):
+        respuesta = _respuesta_recursos_proyecto("Me envías el brochure", None)
+
+        self.assertIsNone(respuesta)
+
     def test_slug_vientos_de_ginebra_carga_ficha_local(self):
         contenido = _cargar_knowledge("vientos_de_ginebra")
 
