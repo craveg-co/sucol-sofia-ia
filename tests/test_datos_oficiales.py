@@ -1,6 +1,7 @@
 import unittest
 
 from agent.brain import (
+    clasificar_descarte_sofia,
     _cargar_knowledge,
     _corregir_disponibilidad,
     _construir_contexto_crm,
@@ -28,6 +29,50 @@ PROYECTO = {
 
 
 class DatosOficialesTest(unittest.TestCase):
+    def test_por_ahora_no_descarta_como_sin_interes_razon_13(self):
+        clasificacion = clasificar_descarte_sofia("Por ahora no")
+
+        self.assertEqual(clasificacion["etapa_lead"], "DESCARTADO")
+        self.assertEqual(clasificacion["categoria_id"], "sin-interes")
+        self.assertEqual(clasificacion["razon_id"], 13)
+        self.assertEqual(
+            clasificacion["razon_label"],
+            "Le gustó pero no quiere comprar ahora",
+        )
+
+    def test_no_me_interesa_descarta_como_sin_interes_explicito(self):
+        clasificacion = clasificar_descarte_sofia("No me interesa")
+
+        self.assertEqual(clasificacion["categoria_id"], "sin-interes")
+        self.assertEqual(clasificacion["razon_id"], 10)
+
+    def test_agradecimiento_simple_no_descarta(self):
+        self.assertIsNone(clasificar_descarte_sofia("Muchas gracias"))
+
+    def test_compra_en_mas_de_12_meses_descarta_como_timing_17(self):
+        clasificacion = clasificar_descarte_sofia("Creo que compraría el próximo año")
+
+        self.assertEqual(clasificacion["categoria_id"], "timing")
+        self.assertEqual(clasificacion["razon_id"], 17)
+
+    def test_espera_vender_inmueble_descarta_como_timing_18(self):
+        clasificacion = clasificar_descarte_sofia("Por ahora debo vender mi apartamento")
+
+        self.assertEqual(clasificacion["categoria_id"], "timing")
+        self.assertEqual(clasificacion["razon_id"], 18)
+
+    def test_pausa_personal_descarta_como_timing_19(self):
+        clasificacion = clasificar_descarte_sofia("No es buen momento por un tema familiar")
+
+        self.assertEqual(clasificacion["categoria_id"], "timing")
+        self.assertEqual(clasificacion["razon_id"], 19)
+
+    def test_bono_o_ingreso_descarta_como_timing_20(self):
+        clasificacion = clasificar_descarte_sofia("Más adelante cuando reciba la prima")
+
+        self.assertEqual(clasificacion["categoria_id"], "timing")
+        self.assertEqual(clasificacion["razon_id"], 20)
+
     def test_vi_publicidad_no_inventa_detalles(self):
         respuesta = _respuesta_referencia_publicidad(
             "Vi la publicidad",

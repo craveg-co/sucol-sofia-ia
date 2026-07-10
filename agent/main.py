@@ -18,7 +18,11 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from agent.brain import generar_respuesta_con_tools, separar_mensajes_whatsapp
+from agent.brain import (
+    clasificar_descarte_sofia,
+    generar_respuesta_con_tools,
+    separar_mensajes_whatsapp,
+)
 from agent.memory import inicializar_db, guardar_mensaje, obtener_historial
 from agent.providers import obtener_proveedor
 from agent.crm import (
@@ -34,6 +38,7 @@ from agent.crm import (
     marcar_incontactable,
     marcar_sofia_lead_respondio,
     marcar_sofia_lead_segundo_contacto,
+    descartar_lead_sofia,
 )
 
 load_dotenv()
@@ -473,6 +478,14 @@ async def webhook_handler(request: Request):
                 f"Respuesta a {telefono} [{proyecto_slug or 'sin proyecto'}] "
                 f"en {len(mensajes_salida)} mensaje(s): {respuesta[:80]}"
             )
+
+            if lead and lead.get("id"):
+                clasificacion_descarte = clasificar_descarte_sofia(msg.texto)
+                if clasificacion_descarte:
+                    await descartar_lead_sofia(
+                        str(lead["id"]),
+                        clasificacion_descarte,
+                    )
 
         return {"status": "ok"}
 

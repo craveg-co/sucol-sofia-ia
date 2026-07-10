@@ -1137,6 +1137,198 @@ _PATRON_CIERRE_CONVERSACION = re.compile(
     re.IGNORECASE,
 )
 
+_RAZONES_DESCARTE = {
+    5: {
+        "categoria_id": "sin-capacidad",
+        "categoria_label": "Sin capacidad",
+        "razon_id": 5,
+        "razon_label": "No tiene capacidad de cuota actual",
+        "reactivable": "si",
+    },
+    6: {
+        "categoria_id": "sin-capacidad",
+        "categoria_label": "Sin capacidad",
+        "razon_id": 6,
+        "razon_label": "No tiene cuota inicial disponible",
+        "reactivable": "si",
+    },
+    7: {
+        "categoria_id": "sin-capacidad",
+        "categoria_label": "Sin capacidad",
+        "razon_id": 7,
+        "razon_label": "Reportó deudas activas o mora",
+        "reactivable": "si",
+    },
+    8: {
+        "categoria_id": "sin-capacidad",
+        "categoria_label": "Sin capacidad",
+        "razon_id": 8,
+        "razon_label": "Perfil no califica para financiamiento",
+        "reactivable": "si",
+    },
+    9: {
+        "categoria_id": "sin-interes",
+        "categoria_label": "Sin interés",
+        "razon_id": 9,
+        "razon_label": "Perdió el interés sin razón clara",
+        "reactivable": "si",
+    },
+    10: {
+        "categoria_id": "sin-interes",
+        "categoria_label": "Sin interés",
+        "razon_id": 10,
+        "razon_label": "Dijo explícitamente que no le interesa",
+        "reactivable": "depende",
+    },
+    11: {
+        "categoria_id": "sin-interes",
+        "categoria_label": "Sin interés",
+        "razon_id": 11,
+        "razon_label": "Cambió de objetivo: no quiere lote",
+        "reactivable": "si",
+    },
+    13: {
+        "categoria_id": "sin-interes",
+        "categoria_label": "Sin interés",
+        "razon_id": 13,
+        "razon_label": "Le gustó pero no quiere comprar ahora",
+        "reactivable": "si",
+    },
+    14: {
+        "categoria_id": "competencia",
+        "categoria_label": "Competencia",
+        "razon_id": 14,
+        "razon_label": "Compró en otro proyecto de SUCOL",
+        "reactivable": "na",
+    },
+    15: {
+        "categoria_id": "competencia",
+        "categoria_label": "Competencia",
+        "razon_id": 15,
+        "razon_label": "Compró en proyecto de la competencia",
+        "reactivable": "si",
+    },
+    16: {
+        "categoria_id": "competencia",
+        "categoria_label": "Competencia",
+        "razon_id": 16,
+        "razon_label": "Prefiere invertir en otro activo",
+        "reactivable": "si",
+    },
+    17: {
+        "categoria_id": "timing",
+        "categoria_label": "Timing",
+        "razon_id": 17,
+        "razon_label": "Compra en más de 12 meses",
+        "reactivable": "si",
+    },
+    18: {
+        "categoria_id": "timing",
+        "categoria_label": "Timing",
+        "razon_id": 18,
+        "razon_label": "Está esperando vender otro inmueble",
+        "reactivable": "si",
+    },
+    19: {
+        "categoria_id": "timing",
+        "categoria_label": "Timing",
+        "razon_id": 19,
+        "razon_label": "Situación personal o familiar en pausa",
+        "reactivable": "si",
+    },
+    20: {
+        "categoria_id": "timing",
+        "categoria_label": "Timing",
+        "razon_id": 20,
+        "razon_label": "Esperando bono o ingreso extraordinario",
+        "reactivable": "si",
+    },
+}
+
+_PATRON_DESCARTE_EXPLICITO = re.compile(
+    r"\b(no me interesa|no estoy interesado|no estoy interesad[ao]|"
+    r"no quiero|ya no me interesa|no gracias|no muchas gracias)\b",
+    re.IGNORECASE,
+)
+
+_PATRON_DESCARTE_POR_AHORA = re.compile(
+    r"\b(por ahora no|ahora no|todav[ií]a no|m[aá]s adelante|"
+    r"en este momento no|no por ahora)\b",
+    re.IGNORECASE,
+)
+
+_PATRON_DESCARTE_NO_LOTE = re.compile(
+    r"\b(no quiero lote|ya no quiero lote|busco casa hecha|busco apartamento|"
+    r"quiero apartamento|quiero casa construida)\b",
+    re.IGNORECASE,
+)
+
+_PATRON_DESCARTE_CUOTA = re.compile(
+    r"\b(no puedo pagar la cuota|cuota muy alta|no me da la cuota|"
+    r"no tengo capacidad de cuota)\b",
+    re.IGNORECASE,
+)
+
+_PATRON_DESCARTE_INICIAL = re.compile(
+    r"\b(no tengo (la )?(cuota inicial|inicial)|sin cuota inicial|"
+    r"no cuento con (la )?inicial)\b",
+    re.IGNORECASE,
+)
+
+_PATRON_DESCARTE_MORA = re.compile(
+    r"\b(estoy reportad[ao]|tengo deudas|estoy en mora|centrales de riesgo|datacr[eé]dito)\b",
+    re.IGNORECASE,
+)
+
+_PATRON_DESCARTE_FINANCIAMIENTO = re.compile(
+    r"\b(no me aprobaron|no califico|no califico para financiaci[oó]n|"
+    r"no soy sujeto de cr[eé]dito)\b",
+    re.IGNORECASE,
+)
+
+_PATRON_DESCARTE_COMPETENCIA_SUCOL = re.compile(
+    r"\b(compr[eé]|separ[eé]|ya compr[eé]|ya separ[eé])\b.*\b(sucol)\b",
+    re.IGNORECASE,
+)
+
+_PATRON_DESCARTE_COMPETENCIA = re.compile(
+    r"\b(compr[eé]|separ[eé]|ya compr[eé]|ya separ[eé])\b.*\b(otro proyecto|otra constructora|competencia)\b",
+    re.IGNORECASE,
+)
+
+_PATRON_DESCARTE_OTRO_ACTIVO = re.compile(
+    r"\b(prefiero invertir|voy a invertir)\b.*\b(apartamento|casa|local|negocio|acciones|cdt|otro activo)\b",
+    re.IGNORECASE,
+)
+
+_PATRON_DESCARTE_MAS_12_MESES = re.compile(
+    r"\b(en|dentro de|para)\s+(1\s*a[nñ]o|un\s*a[nñ]o|12\s*meses|"
+    r"m[aá]s de\s+(1\s*a[nñ]o|un\s*a[nñ]o|12\s*meses)|"
+    r"el pr[oó]ximo a[nñ]o|el otro a[nñ]o)\b|"
+    r"\b(pr[oó]ximo a[nñ]o|otro a[nñ]o|m[aá]s de 12 meses|m[aá]s de un a[nñ]o)\b",
+    re.IGNORECASE,
+)
+
+_PATRON_DESCARTE_VENDER_INMUEBLE = re.compile(
+    r"\b(vender|venda|vendamos|venda mi|vender mi|vender otro|"
+    r"venta de)\b.*\b(casa|apartamento|apto|inmueble|propiedad|lote)\b|"
+    r"\b(cuando venda|hasta vender)\b",
+    re.IGNORECASE,
+)
+
+_PATRON_DESCARTE_PAUSA_PERSONAL = re.compile(
+    r"\b(situaci[oó]n personal|tema personal|problema familiar|tema familiar|"
+    r"asunto familiar|estoy en pausa|dej[eé]moslo en pausa|pausar|"
+    r"no es buen momento)\b",
+    re.IGNORECASE,
+)
+
+_PATRON_DESCARTE_BONO_INGRESO = re.compile(
+    r"\b(bono|prima|cesant[ií]as|liquidaci[oó]n|ingreso extraordinario|"
+    r"pago extraordinario|cuando me paguen|cuando reciba)\b",
+    re.IGNORECASE,
+)
+
 _PATRON_INTENCION_CITA = re.compile(
     r"\b(agendar|programar|reservar|coordinar)\b.*\b(llamada|cita|visita|videollamada)\b|"
     r"\b(llamada|cita|visita|videollamada)\b.*\b(agendar|programar|reservar|coordinar)\b",
@@ -1177,6 +1369,51 @@ def _respuesta_rango_horario(mensaje: str) -> str | None:
         "Perfecto. Para registrar la llamada necesito una hora exacta dentro de ese rango. "
         "¿La programamos a las 8:00, 8:30 o 9:00?"
     )
+
+
+def clasificar_descarte_sofia(mensaje: str) -> dict | None:
+    """Clasifica cierres descartables segun el catalogo oficial del CRM."""
+    texto = mensaje or ""
+    razon_id = None
+
+    if _PATRON_DESCARTE_COMPETENCIA_SUCOL.search(texto):
+        razon_id = 14
+    elif _PATRON_DESCARTE_COMPETENCIA.search(texto):
+        razon_id = 15
+    elif _PATRON_DESCARTE_OTRO_ACTIVO.search(texto):
+        razon_id = 16
+    elif _PATRON_DESCARTE_VENDER_INMUEBLE.search(texto):
+        razon_id = 18
+    elif _PATRON_DESCARTE_BONO_INGRESO.search(texto):
+        razon_id = 20
+    elif _PATRON_DESCARTE_PAUSA_PERSONAL.search(texto):
+        razon_id = 19
+    elif _PATRON_DESCARTE_MAS_12_MESES.search(texto):
+        razon_id = 17
+    elif _PATRON_DESCARTE_NO_LOTE.search(texto):
+        razon_id = 11
+    elif _PATRON_DESCARTE_INICIAL.search(texto):
+        razon_id = 6
+    elif _PATRON_DESCARTE_CUOTA.search(texto):
+        razon_id = 5
+    elif _PATRON_DESCARTE_MORA.search(texto):
+        razon_id = 7
+    elif _PATRON_DESCARTE_FINANCIAMIENTO.search(texto):
+        razon_id = 8
+    elif _PATRON_DESCARTE_POR_AHORA.search(texto):
+        razon_id = 13
+    elif _PATRON_DESCARTE_EXPLICITO.search(texto):
+        razon_id = 10
+
+    if not razon_id:
+        return None
+
+    clasificacion = dict(_RAZONES_DESCARTE[razon_id])
+    clasificacion["etapa_lead"] = "DESCARTADO"
+    clasificacion["motivo"] = (
+        f"Sofía descartó el lead por mensaje del cliente: {texto.strip()[:240]}"
+    )
+    return clasificacion
 
 
 def _menciona_proyecto_distinto(respuesta: str, proyecto: dict | None) -> bool:

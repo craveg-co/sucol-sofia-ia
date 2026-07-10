@@ -301,6 +301,117 @@ async def actualizar_lead_por_id(lead_id: str, datos: dict):
         logger.error(f"CRM actualizar_lead_por_id: {e}")
 
 
+async def _columnas_tabla(nombre_tabla: str) -> set[str]:
+    """Retorna columnas existentes para hacer updates compatibles con el CRM desplegado."""
+    if not _crm_disponible():
+        return set()
+    try:
+        async with _crm_session() as session:
+            result = await session.execute(
+                text("""
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = :tabla
+                """),
+                {"tabla": nombre_tabla},
+            )
+            return {str(row["column_name"]) for row in result.mappings().all()}
+    except Exception as e:
+        logger.error(f"CRM _columnas_tabla({nombre_tabla}): {e}")
+        return set()
+
+
+async def descartar_lead_sofia(lead_id: str, clasificacion: dict) -> bool:
+    """
+    Marca un lead como DESCARTADO y guarda la categoria/razon si esas columnas existen.
+    El catalogo lo decide Sofia; el CRM conserva la etapa y los reportes.
+    """
+    if not _crm_disponible() or not lead_id or not clasificacion:
+        return False
+
+    columnas_leads = await _columnas_tabla("leads")
+    columnas_sofia = await _columnas_tabla("sofia_leads")
+
+    datos_posibles = {
+        "etapa_lead": "DESCARTADO",
+        "categoria_descarte_id": clasificacion.get("categoria_id"),
+        "categoria_descarte": clasificacion.get("categoria_label"),
+        "categoria_descarte_label": clasificacion.get("categoria_label"),
+        "razon_descarte_id": clasificacion.get("razon_id"),
+        "razon_descarte": clasificacion.get("razon_label"),
+        "razon_descarte_label": clasificacion.get("razon_label"),
+        "reactivable": clasificacion.get("reactivable"),
+        "motivo_descarte": clasificacion.get("motivo"),
+        "motivo_cierre": clasificacion.get("motivo"),
+        "fecha_descarte": "NOW()",
+        "descartado_por": "sofia",
+    }
+    datos_lead = {
+        k: v for k, v in datos_posibles.items()
+        if k in columnas_leads and v is not None
+    }
+    if "etapa_lead" not in datos_lead:
+        datos_lead["etapa_lead"] = "DESCARTADO"
+
+    params = {"lead_id": lead_id}
+    sets = []
+    for campo, valor in datos_lead.items():
+        if valor == "NOW()":
+            sets.append(f"{campo} = now()")
+        else:
+            params[campo] = valor
+            sets.append(f"{campo} = :{campo}")
+
+    try:
+        async with _crm_session() as session:
+            await session.execute(
+                text(f"UPDATE leads SET {', '.join(sets)} WHERE id = :lead_id"),
+                params,
+            )
+            await session.commit()
+
+        campos_sofia = {
+            "etapa": "descartado",
+            "categoria_descarte_id": clasificacion.get("categoria_id"),
+            "categoria_descarte": clasificacion.get("categoria_label"),
+            "razon_descarte_id": clasificacion.get("razon_id"),
+            "razon_descarte": clasificacion.get("razon_label"),
+            "motivo_descarte": clasificacion.get("motivo"),
+            "updated_at": "NOW()",
+        }
+        datos_sofia = {
+            k: v for k, v in campos_sofia.items()
+            if k in columnas_sofia and v is not None
+        }
+        if datos_sofia:
+            params_sofia = {"lead_id": lead_id}
+            sets_sofia = []
+            for campo, valor in datos_sofia.items():
+                if valor == "NOW()":
+                    sets_sofia.append(f"{campo} = now()")
+                else:
+                    params_sofia[campo] = valor
+                    sets_sofia.append(f"{campo} = :{campo}")
+            async with _crm_session() as session:
+                await session.execute(
+                    text(f"UPDATE sofia_leads SET {', '.join(sets_sofia)} WHERE lead_id = :lead_id"),
+                    params_sofia,
+                )
+                await session.commit()
+
+        logger.info(
+            "Lead descartado por Sofia lead=%s categoria=%s razon=%s",
+            lead_id,
+            clasificacion.get("categoria_id"),
+            clasificacion.get("razon_id"),
+        )
+        return True
+    except Exception as e:
+        logger.error(f"CRM descartar_lead_sofia lead={lead_id}: {e}")
+        return False
+
+
 # ── Contactos WhatsApp ─────────────────────────────────────────────────────────
 
 async def crear_o_actualizar_contacto_whatsapp(telefono: str, datos: dict):
