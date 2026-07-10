@@ -335,6 +335,11 @@ async def descartar_lead_sofia(lead_id: str, clasificacion: dict) -> bool:
 
     datos_posibles = {
         "etapa_lead": "DESCARTADO",
+        "descarte_categoria": clasificacion.get("categoria_label"),
+        "descarte_razon": clasificacion.get("razon_label"),
+        "descarte_razon_id": clasificacion.get("razon_id"),
+        "descarte_notas": clasificacion.get("motivo"),
+        "fecha_cierre": "NOW()",
         "categoria_descarte_id": clasificacion.get("categoria_id"),
         "categoria_descarte": clasificacion.get("categoria_label"),
         "categoria_descarte_label": clasificacion.get("categoria_label"),
@@ -346,6 +351,7 @@ async def descartar_lead_sofia(lead_id: str, clasificacion: dict) -> bool:
         "motivo_cierre": clasificacion.get("motivo"),
         "fecha_descarte": "NOW()",
         "descartado_por": "sofia",
+        "updated_at": "NOW()",
     }
     datos_lead = {
         k: v for k, v in datos_posibles.items()
@@ -372,12 +378,18 @@ async def descartar_lead_sofia(lead_id: str, clasificacion: dict) -> bool:
             await session.commit()
 
         campos_sofia = {
-            "etapa": "descartado",
+            "etapa": "respondio",
+            "estado_conversacion": "conversacion_ok",
             "categoria_descarte_id": clasificacion.get("categoria_id"),
             "categoria_descarte": clasificacion.get("categoria_label"),
             "razon_descarte_id": clasificacion.get("razon_id"),
             "razon_descarte": clasificacion.get("razon_label"),
             "motivo_descarte": clasificacion.get("motivo"),
+            "motivo_intervencion": (
+                f"Descartado por Sofía: {clasificacion.get('categoria_label')} - "
+                f"{clasificacion.get('razon_label')}"
+            ),
+            "resumen_estado_sofia": clasificacion.get("motivo"),
             "updated_at": "NOW()",
         }
         datos_sofia = {
