@@ -166,6 +166,23 @@ async def obtener_proyecto_por_telefono(telefono: str) -> dict | None:
         return None
 
 
+async def obtener_contacto_whatsapp(telefono: str) -> dict | None:
+    """Retorna el contacto persistido para un telefono, si existe."""
+    if not _crm_disponible():
+        return None
+    try:
+        async with _crm_session() as session:
+            result = await session.execute(
+                text("SELECT * FROM contactos_whatsapp WHERE telefono = :telefono LIMIT 1"),
+                {"telefono": telefono},
+            )
+            row = result.mappings().first()
+            return dict(row) if row else None
+    except Exception as e:
+        logger.error(f"CRM obtener_contacto_whatsapp: {e}")
+        return None
+
+
 async def obtener_proyectos_activos() -> list[dict]:
     """Retorna slug y nombre de todos los proyectos activos."""
     if not _crm_disponible():

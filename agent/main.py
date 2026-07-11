@@ -28,6 +28,7 @@ from agent.providers import obtener_proveedor
 from agent.crm import (
     obtener_proyecto_por_telefono,
     obtener_proyecto_desde_lead,
+    obtener_contacto_whatsapp,
     detectar_proyecto_en_mensaje,
     obtener_lead,
     obtener_lead_por_id,
@@ -76,6 +77,9 @@ def _es_mensaje_formulario_meta(texto: str) -> bool:
     tiene_intro_formulario = (
         "completé el formulario" in texto_norm
         or "complete el formulario" in texto_norm
+        or "completado el formulario" in texto_norm
+        or "completado este formulario" in texto_norm
+        or "completed the form" in texto_norm
     )
     campos_formulario = [
         "full name:",
@@ -83,6 +87,21 @@ def _es_mensaje_formulario_meta(texto: str) -> bool:
         "email:",
     ]
     return tiene_intro_formulario and sum(campo in texto_norm for campo in campos_formulario) >= 2
+
+
+def _bloquea_primer_contacto_por_contacto_activo(contacto: dict | None, proyecto_slug: str | None) -> bool:
+    """
+    Evita enviar una plantilla inicial si el telefono ya tiene otro proyecto activo.
+    El cliente puede cambiar de proyecto explicitamente escribiendo el nombre del proyecto.
+    """
+    proyecto_activo = str((contacto or {}).get("proyecto_slug") or "").strip()
+    return bool(proyecto_activo and proyecto_slug and proyecto_activo != proyecto_slug)
+
+
+def _bloquea_segundo_contacto_por_contacto_activo(contacto: dict | None, proyecto_slug: str | None) -> bool:
+    """El segundo contacto solo debe continuar sobre el mismo proyecto activo del chat."""
+    proyecto_activo = str((contacto or {}).get("proyecto_slug") or "").strip()
+    return bool(proyecto_activo and proyecto_slug and proyecto_activo != proyecto_slug)
 
 
 def _ya_procesado(mensaje_id: str) -> bool:
@@ -232,6 +251,23 @@ async def iniciar_conversacion(payload: LeadIdPayload):
     proyecto_slug = proyecto.get("slug") if proyecto else None
     if not proyecto:
         raise HTTPException(status_code=422, detail="No se pudo detectar el proyecto del lead")
+
+    contacto_activo = await obtener_contacto_whatsapp(tel_norm)
+    if _bloquea_primer_contacto_por_contacto_activo(contacto_activo, proyecto_slug):
+        logger.warning(
+            "Primer contacto bloqueado para %s: proyecto activo=%s, lead=%s",
+            tel_norm,
+            contacto_activo.get("proyecto_slug"),
+            proyecto_slug,
+        )
+        return {
+            "status": "skipped",
+            "reason": "telefono_con_proyecto_activo_distinto",
+            "telefono": tel_norm,
+            "proyecto_activo": contacto_activo.get("proyecto_slug"),
+            "proyecto_lead": proyecto_slug,
+        }
+
     try:
         await crear_o_actualizar_contacto_whatsapp(
             tel_norm,
@@ -292,6 +328,22 @@ async def enviar_segundo_contacto(payload: LeadIdPayload):
     proyecto_slug = proyecto.get("slug") if proyecto else None
     if not proyecto:
         raise HTTPException(status_code=422, detail="No se pudo detectar el proyecto del lead")
+
+    contacto_activo = await obtener_contacto_whatsapp(tel_norm)
+    if _bloquea_segundo_contacto_por_contacto_activo(contacto_activo, proyecto_slug):
+        logger.warning(
+            "Segundo contacto bloqueado para %s: proyecto activo=%s, lead=%s",
+            tel_norm,
+            contacto_activo.get("proyecto_slug"),
+            proyecto_slug,
+        )
+        return {
+            "status": "skipped",
+            "reason": "telefono_con_proyecto_activo_distinto",
+            "telefono": tel_norm,
+            "proyecto_activo": contacto_activo.get("proyecto_slug"),
+            "proyecto_lead": proyecto_slug,
+        }
 
     try:
         await crear_o_actualizar_contacto_whatsapp(

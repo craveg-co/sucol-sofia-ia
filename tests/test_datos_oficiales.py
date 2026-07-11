@@ -11,6 +11,7 @@ from agent.brain import (
     _respuesta_cambio_interes,
     _respuesta_recursos_proyecto,
     _respuesta_referencia_publicidad,
+    _respuesta_solicitud_info_proyecto,
     _respuesta_sin_proyecto,
     _resumen_cita_oficial,
     _respuesta_operativa_visita,
@@ -194,6 +195,28 @@ class DatosOficialesTest(unittest.TestCase):
         self.assertIn("Santa Elena", resumen)
         self.assertNotIn("Ciudadela del Río", resumen)
 
+    def test_si_cuentame_mas_responde_sin_modelo(self):
+        respuesta = _respuesta_solicitud_info_proyecto(
+            "Sí, cuéntame más",
+            PROYECTO,
+            [],
+        )
+
+        self.assertIsNotNone(respuesta)
+        self.assertIn("Santa Elena", respuesta)
+        self.assertIn("informaci", respuesta.lower())
+
+    def test_si_cuentame_mas_usa_inventario_crm_si_existe(self):
+        respuesta = _respuesta_solicitud_info_proyecto(
+            "Sí, cuéntame más",
+            PROYECTO,
+            [{"area_m2": 90, "precio_total": 100000000}],
+        )
+
+        self.assertIsNotNone(respuesta)
+        self.assertIn("90", respuesta)
+        self.assertIn("$100,000,000", respuesta)
+
     def test_bloquea_nombre_de_proyecto_distinto_al_crm(self):
         respuesta = _procesar_respuesta_cliente(
             "Nuestro proyecto Ciudadela del Río tiene lotes desde 1.000 m².",
@@ -206,6 +229,32 @@ class DatosOficialesTest(unittest.TestCase):
         self.assertIn("Santa Elena", respuesta)
         self.assertNotIn("Ciudadela del Río", respuesta)
         self.assertNotIn("1.000", respuesta)
+
+    def test_sofia_no_dice_que_esta_fuera_de_horario(self):
+        respuesta = _procesar_respuesta_cliente(
+            "Hola, soy Sofía de SUCOL. Estamos fuera de horario (L-V 8am-6pm, Sáb 8am-5pm, Dom 8am-4pm). ¿Te llamo mañana a primera hora?",
+            "Sí, cuéntame más",
+            PROYECTO,
+            [],
+            None,
+        )
+
+        self.assertIn("Sofía puede ayudarte", respuesta)
+        self.assertIn("asesores físicos", respuesta)
+        self.assertNotIn("Estamos fuera de horario", respuesta)
+
+    def test_horario_solo_aplica_para_llamada_con_asesor(self):
+        respuesta = _procesar_respuesta_cliente(
+            "Estamos fuera de horario. ¿Te llamo mañana?",
+            "Quiero hablar con un asesor",
+            PROYECTO,
+            [],
+            None,
+        )
+
+        self.assertIn("llamadas", respuesta)
+        self.assertIn("asesores físicos", respuesta)
+        self.assertIn("L-V 8am-6pm", respuesta)
 
     def test_contexto_inyecta_direccion_y_mapa_oficiales(self):
         contexto = _construir_contexto_crm(None, [], proyecto=PROYECTO)

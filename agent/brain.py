@@ -827,6 +827,20 @@ _PATRON_REFERENCIA_ENLACE = re.compile(
     re.IGNORECASE,
 )
 
+_PATRON_SOLICITA_INFO_PROYECTO = re.compile(
+    r"^\s*(?:s[ií]|si|claro|dale|ok|bueno|perfecto)[,.\s]*(?:"
+    r"cu[eé]ntame(?:\s+m[aá]s)?|"
+    r"quiero\s+(?:m[aá]s\s+)?informaci[oó]n|"
+    r"env[ií]ame\s+(?:m[aá]s\s+)?informaci[oó]n|"
+    r"me\s+interesa|"
+    r"informaci[oó]n"
+    r")\s*[.!?]*$|"
+    r"^\s*(?:cu[eé]ntame(?:\s+m[aá]s)?|"
+    r"quiero\s+(?:m[aá]s\s+)?informaci[oó]n|"
+    r"env[ií]ame\s+(?:m[aá]s\s+)?informaci[oó]n)\s*[.!?]*$",
+    re.IGNORECASE,
+)
+
 _PATRON_SOLICITUD_ASESOR = re.compile(
     r"\b(asesor(?:a)?|persona\s+real|persona\s+humana|humano|ejecutiv[oa]|"
     r"hablar\s+con\s+alguien|contacto\s+humano|tel[eé]fono\s+de|"
@@ -847,6 +861,34 @@ _PATRON_SIN_DISPONIBILIDAD = re.compile(
     r"agotad[oa]s?)\b",
     re.IGNORECASE,
 )
+
+
+_PATRON_FUERA_HORARIO_SOFIA = re.compile(
+    r"\b(?:estamos|est[aá]n|sucol|sof[ií]a|el\s+chat)\s+"
+    r"(?:fuera\s+de\s+horario|cerrad[oa]s?)\b|"
+    r"\bfuera\s+de\s+horario\b",
+    re.IGNORECASE,
+)
+
+
+def _corregir_fuera_horario_sofia(respuesta: str, mensaje_cliente: str) -> str:
+    """Sofia atiende siempre; el horario solo aplica a asesores fisicos."""
+    if not _PATRON_FUERA_HORARIO_SOFIA.search(respuesta or ""):
+        return respuesta
+
+    logger.error("Respuesta corregida: Sofía no debe decir que está fuera de horario")
+    if _PATRON_SOLICITUD_ASESOR.search(mensaje_cliente or "") or _PATRON_INTENCION_CITA.search(mensaje_cliente or ""):
+        return (
+            "Sofía puede ayudarte por WhatsApp en este momento. "
+            "Las llamadas, visitas y atención con asesores físicos se programan en horario de asesores: "
+            "L-V 8am-6pm, Sáb 8am-5pm y Dom 8am-4pm. ¿Quieres que dejemos una llamada programada?"
+        )
+
+    return (
+        "Sofía puede ayudarte por WhatsApp en este momento. "
+        "El horario aplica solo para llamadas, visitas o atención con asesores físicos. "
+        "¿Qué información necesitas?"
+    )
 
 
 def _cliente_pide_asesor(mensaje: str) -> bool:
@@ -955,6 +997,17 @@ def _respuesta_resumen_crm(
     )
 
 
+def _respuesta_solicitud_info_proyecto(
+    mensaje: str,
+    proyecto: dict | None,
+    lotes: list[dict],
+) -> str | None:
+    """Responde intenciones simples de 'si, cuentame mas' sin depender del modelo."""
+    if not proyecto or not _PATRON_SOLICITA_INFO_PROYECTO.search(mensaje or ""):
+        return None
+    return _respuesta_resumen_crm(proyecto, lotes)
+
+
 def _respuesta_es_incompleta(respuesta: str) -> bool:
     texto = re.sub(r"\s+", " ", respuesta or "").strip()
     if len(texto) < 45:
@@ -982,6 +1035,7 @@ def _procesar_respuesta_cliente(
             f"La información oficial que tengo asociada a este chat corresponde a {nombre}. "
             "¿Qué deseas conocer sobre este proyecto?"
         )
+    respuesta = _corregir_fuera_horario_sofia(respuesta, mensaje_cliente)
     respuesta = _validar_respuesta_oficial(respuesta, proyecto)
     respuesta = _corregir_disponibilidad(respuesta, lotes, proyecto)
     respuesta = _quitar_mencion_asesor_no_solicitada(
@@ -1626,6 +1680,14 @@ async def generar_respuesta_con_tools(
     if not proyecto:
         return _respuesta_sin_proyecto(mensaje)
 
+    respuesta_info = _respuesta_solicitud_info_proyecto(
+        mensaje,
+        proyecto,
+        lotes_disponibles or [],
+    )
+    if respuesta_info:
+        return respuesta_info
+
     respuesta_rango = _respuesta_rango_horario(mensaje)
     if respuesta_rango:
         return respuesta_rango
@@ -1799,6 +1861,14 @@ async def generar_respuesta(
 
     if not proyecto:
         return _respuesta_sin_proyecto(mensaje)
+
+    respuesta_info = _respuesta_solicitud_info_proyecto(
+        mensaje,
+        proyecto,
+        lotes_disponibles or [],
+    )
+    if respuesta_info:
+        return respuesta_info
 
     respuesta_rango = _respuesta_rango_horario(mensaje)
     if respuesta_rango:
