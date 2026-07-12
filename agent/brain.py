@@ -223,7 +223,7 @@ def _ubicacion_oficial_proyecto(proyecto: dict | None) -> str:
 
 def _cargar_config_prompts() -> dict:
     try:
-        with open("config/prompts.yaml", "r", encoding="utf-8") as f:
+        with (_BASE_DIR / "config" / "prompts.yaml").open("r", encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
     except FileNotFoundError:
         return {}
@@ -783,8 +783,12 @@ _PATRON_PREGUNTA_VISITA = re.compile(
 )
 
 _PATRON_UBICACION_PROYECTO = re.compile(
-    r"\b(d[oó]nde\s+(?:queda|est[aá])|ubicaci[oó]n(?:\s+exacta)?|"
-    r"direcci[oó]n\s+del\s+proyecto|lugar\s+exacto)\b",
+    r"\b(?:en\s+)?d[oó]nde\s+(?:queda|est[aá]|est[aá]n|estan|ubicad[oa]s?)\b|"
+    r"\bubicaci[oó]n(?:\s+exacta)?\b|"
+    r"\bdirecci[oó]n\s+del\s+proyecto\b|"
+    r"\blugar\s+exacto\b|"
+    r"\best[aá]n\s+ubicad[oa]s?\b|"
+    r"\bestan\s+ubicad[oa]s?\b",
     re.IGNORECASE,
 )
 

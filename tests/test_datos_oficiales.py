@@ -121,6 +121,16 @@ class DatosOficialesTest(unittest.TestCase):
         self.assertNotIn(PROYECTO["google_maps_url"], respuesta)
         self.assertIn("enlace oficial del terreno", respuesta)
 
+    def test_en_donde_estan_ubicados_responde_sin_modelo(self):
+        respuesta = _respuesta_recursos_proyecto(
+            "En donde estan ubicados?",
+            {"slug": "reservas_ilama", "nombre": "Reservas de Ilama"},
+        )
+
+        self.assertIsNotNone(respuesta)
+        self.assertIn("Lago Calima", respuesta)
+        self.assertNotIn("problema técnico", respuesta.lower())
+
     def test_imagenes_sin_galeria_no_fuerzan_una_cita(self):
         respuesta = _respuesta_recursos_proyecto(
             "Quiero ver imágenes del proyecto",
