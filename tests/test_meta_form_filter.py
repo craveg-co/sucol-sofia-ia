@@ -18,6 +18,11 @@ class MetaFormFilterTest(unittest.TestCase):
     def test_no_bloquea_mensaje_real_del_cliente(self):
         self.assertFalse(_es_mensaje_formulario_meta("Hola, quiero información de Bora"))
 
+    def test_detecta_mensaje_automatico_recortado_de_formulario_meta(self):
+        texto = "¡Hola! Completé el formulario y me gustaría obtener más información sobre tu negocio."
+
+        self.assertTrue(_es_mensaje_formulario_meta(texto))
+
     def test_no_bloquea_cliente_que_menciona_email_sin_ser_formulario(self):
         texto = "Mi email es cliente@example.com y quiero saber precios de Bora"
 

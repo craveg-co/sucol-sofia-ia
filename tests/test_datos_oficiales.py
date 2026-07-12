@@ -9,6 +9,7 @@ from agent.brain import (
     _quitar_mencion_asesor_no_solicitada,
     _respuesta_rango_horario,
     _respuesta_cambio_interes,
+    _respuesta_cierre_conversacion,
     _respuesta_recursos_proyecto,
     _respuesta_referencia_publicidad,
     _respuesta_solicitud_info_proyecto,
@@ -188,6 +189,17 @@ class DatosOficialesTest(unittest.TestCase):
 
         self.assertIsNotNone(respuesta)
         self.assertIn("hora exacta", respuesta)
+
+    def test_no_por_ahora_cierra_sin_modelo(self):
+        respuesta = _respuesta_cierre_conversacion(
+            "No por ahora",
+            [],
+            {"nombre_completo": "Carlos Alberto Rodriguez"},
+        )
+
+        self.assertIsNotNone(respuesta)
+        self.assertIn("Carlos", respuesta)
+        self.assertNotIn("problema técnico", respuesta.lower())
 
     def test_resumen_cita_usa_proyecto_oficial(self):
         resumen = _resumen_cita_oficial("Llamada", PROYECTO)

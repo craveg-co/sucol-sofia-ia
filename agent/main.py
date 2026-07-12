@@ -10,6 +10,7 @@ import asyncio
 import os
 import time
 import logging
+import unicodedata
 from datetime import datetime, timezone
 from collections import OrderedDict
 from contextlib import asynccontextmanager
@@ -63,6 +64,15 @@ _DEDUP_TTL = 300    # 5 minutos — alineado con la ventana de antigüedad
 _MSG_MAX_EDAD_SEG = 300
 
 
+def _normalizar_texto_formulario(texto: str) -> str:
+    texto = (texto or "").lower()
+    texto = "".join(
+        c for c in unicodedata.normalize("NFD", texto)
+        if unicodedata.category(c) != "Mn"
+    )
+    return " ".join(texto.split())
+
+
 def _es_mensaje_formulario_meta(texto: str) -> bool:
     """
     Detecta el texto automatico que Meta envia al crear un lead desde publicidad.
@@ -73,10 +83,9 @@ def _es_mensaje_formulario_meta(texto: str) -> bool:
     if not texto_limpio:
         return False
 
-    texto_norm = texto_limpio.lower()
+    texto_norm = _normalizar_texto_formulario(texto_limpio)
     tiene_intro_formulario = (
-        "completé el formulario" in texto_norm
-        or "complete el formulario" in texto_norm
+        "complete el formulario" in texto_norm
         or "completado el formulario" in texto_norm
         or "completado este formulario" in texto_norm
         or "completed the form" in texto_norm
@@ -86,7 +95,19 @@ def _es_mensaje_formulario_meta(texto: str) -> bool:
         "phone number:",
         "email:",
     ]
-    return tiene_intro_formulario and sum(campo in texto_norm for campo in campos_formulario) >= 2
+    campos_detectados = sum(campo in texto_norm for campo in campos_formulario)
+    if tiene_intro_formulario and campos_detectados >= 2:
+        return True
+
+    return bool(
+        tiene_intro_formulario
+        and texto_norm.startswith(("hola! ", "¡hola! ", "hola "))
+        and (
+            "mas informacion sobre tu negocio" in texto_norm
+            or "mas informacion sobre vuestro negocio" in texto_norm
+            or "more information about your business" in texto_norm
+        )
+    )
 
 
 def _bloquea_primer_contacto_por_contacto_activo(contacto: dict | None, proyecto_slug: str | None) -> bool:

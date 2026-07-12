@@ -4,6 +4,9 @@ import os
 import ssl
 import logging
 import httpx
+import re
+import unicodedata
+from difflib import SequenceMatcher
 from datetime import date, time
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy import text
@@ -11,6 +14,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 logger = logging.getLogger("agentkit")
+
+_ALIAS_PROYECTOS = {
+    "buenavista": {
+        "buena vista",
+        "buenas vista",
+        "buenas vistas",
+        "buena vistas",
+        "buenavista",
+    },
+}
 
 # ── Conexión ───────────────────────────────────────────────────────────────────
 
@@ -111,35 +124,43 @@ async def obtener_proyecto_por_telefono(telefono: str) -> dict | None:
     """
     if not _crm_disponible():
         return None
+    variantes = _variantes_telefono(telefono)
     try:
         async with _crm_session() as session:
             # 1. Buscar en contactos_whatsapp
-            result = await session.execute(
-                text("""
-                    SELECT p.*
-                    FROM proyectos p
-                    INNER JOIN contactos_whatsapp cw ON cw.proyecto_slug = p.slug
-                    WHERE cw.telefono = :telefono AND p.activo = true
-                    LIMIT 1
-                """),
-                {"telefono": telefono},
-            )
-            row = result.mappings().first()
-            if row:
-                return dict(row)
+            for variante in variantes:
+                result = await session.execute(
+                    text("""
+                        SELECT p.*
+                        FROM proyectos p
+                        INNER JOIN contactos_whatsapp cw ON cw.proyecto_slug = p.slug
+                        WHERE cw.telefono = :telefono AND p.activo = true
+                        LIMIT 1
+                    """),
+                    {"telefono": variante},
+                )
+                row = result.mappings().first()
+                if row:
+                    logger.info(f"CRM proyecto por contacto: encontrado con variante '{variante}'")
+                    return dict(row)
 
             # 2. Buscar en leads
-            result = await session.execute(
-                text("""
-                    SELECT p.*
-                    FROM proyectos p
-                    INNER JOIN leads l ON l.proyecto = p.slug
-                    WHERE l.telefono_principal = :telefono AND p.activo = true
-                    LIMIT 1
-                """),
-                {"telefono": telefono},
-            )
-            row = result.mappings().first()
+            row = None
+            for variante in variantes:
+                result = await session.execute(
+                    text("""
+                        SELECT p.*
+                        FROM proyectos p
+                        INNER JOIN leads l ON l.proyecto = p.slug
+                        WHERE l.telefono_principal = :telefono AND p.activo = true
+                        LIMIT 1
+                    """),
+                    {"telefono": variante},
+                )
+                row = result.mappings().first()
+                if row:
+                    logger.info(f"CRM proyecto por lead: encontrado con variante '{variante}'")
+                    break
             if not row:
                 return None
 
@@ -170,14 +191,19 @@ async def obtener_contacto_whatsapp(telefono: str) -> dict | None:
     """Retorna el contacto persistido para un telefono, si existe."""
     if not _crm_disponible():
         return None
+    variantes = _variantes_telefono(telefono)
     try:
         async with _crm_session() as session:
-            result = await session.execute(
-                text("SELECT * FROM contactos_whatsapp WHERE telefono = :telefono LIMIT 1"),
-                {"telefono": telefono},
-            )
-            row = result.mappings().first()
-            return dict(row) if row else None
+            for variante in variantes:
+                result = await session.execute(
+                    text("SELECT * FROM contactos_whatsapp WHERE telefono = :telefono LIMIT 1"),
+                    {"telefono": variante},
+                )
+                row = result.mappings().first()
+                if row:
+                    logger.info(f"CRM contacto_whatsapp: encontrado con variante '{variante}'")
+                    return dict(row)
+            return None
     except Exception as e:
         logger.error(f"CRM obtener_contacto_whatsapp: {e}")
         return None
@@ -207,13 +233,10 @@ async def detectar_proyecto_en_mensaje(mensaje: str) -> dict | None:
         return None
     try:
         proyectos = await obtener_proyectos_activos()
-        mensaje_lower = mensaje.lower()
-        logger.info(f"CRM detección: {len(proyectos)} proyectos activos | mensaje='{mensaje_lower[:60]}'")
+        mensaje_normalizado = _normalizar_texto_matching(mensaje)
+        logger.info(f"CRM detección: {len(proyectos)} proyectos activos | mensaje='{mensaje_normalizado[:60]}'")
         for p in proyectos:
-            slug_legible = p["slug"].replace("_", " ").replace("-", " ")
-            nombre_lower = p["nombre"].lower()
-            logger.info(f"  → comparando slug='{slug_legible}' nombre='{nombre_lower}'")
-            if slug_legible in mensaje_lower or nombre_lower in mensaje_lower:
+            if _proyecto_coincide_mensaje(p, mensaje_normalizado):
                 logger.info(f"  ✓ coincidencia encontrada: {p['slug']}")
                 return await obtener_proyecto_por_slug(p["slug"])
         logger.info("  ✗ ningún proyecto coincide con el mensaje")
@@ -224,6 +247,44 @@ async def detectar_proyecto_en_mensaje(mensaje: str) -> dict | None:
 
 
 # ── Leads ──────────────────────────────────────────────────────────────────────
+
+def _normalizar_texto_matching(texto: str) -> str:
+    """Normaliza texto para matching tolerante de proyecto."""
+    texto = (texto or "").lower()
+    texto = "".join(
+        c for c in unicodedata.normalize("NFD", texto)
+        if unicodedata.category(c) != "Mn"
+    )
+    texto = re.sub(r"[^a-z0-9]+", " ", texto)
+    return re.sub(r"\s+", " ", texto).strip()
+
+
+def _proyecto_coincide_mensaje(proyecto: dict, mensaje_normalizado: str) -> bool:
+    """Detecta nombre/slug del proyecto con alias y errores menores de escritura."""
+    slug = str(proyecto.get("slug") or "")
+    nombre = str(proyecto.get("nombre") or "")
+    candidatos = {
+        _normalizar_texto_matching(slug.replace("_", " ").replace("-", " ")),
+        _normalizar_texto_matching(nombre),
+    }
+    candidatos.update(_ALIAS_PROYECTOS.get(slug, set()))
+    candidatos = {c for c in candidatos if c}
+
+    if any(candidato in mensaje_normalizado for candidato in candidatos):
+        return True
+
+    palabras_mensaje = mensaje_normalizado.split()
+    for candidato in candidatos:
+        palabras = candidato.split()
+        ancho = len(palabras)
+        if ancho == 0 or ancho > len(palabras_mensaje):
+            continue
+        for i in range(0, len(palabras_mensaje) - ancho + 1):
+            ventana = " ".join(palabras_mensaje[i:i + ancho])
+            if SequenceMatcher(None, ventana, candidato).ratio() >= 0.9:
+                return True
+    return False
+
 
 def _variantes_telefono(telefono: str) -> list[str]:
     """

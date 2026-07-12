@@ -26,6 +26,14 @@ class TestMainSafety(unittest.TestCase):
     def test_no_detecta_mensaje_normal_como_formulario(self):
         self.assertFalse(_es_mensaje_formulario_meta("Sí, cuéntame más"))
 
+    def test_detecta_formulario_meta_recortado(self):
+        texto = (
+            "¡Hola! Completé el formulario y me gustaría obtener más información "
+            "sobre tu negocio."
+        )
+
+        self.assertTrue(_es_mensaje_formulario_meta(texto))
+
     def test_bloquea_primer_contacto_si_hay_otro_proyecto_activo(self):
         contacto = {"proyecto_slug": "santa_elena"}
 

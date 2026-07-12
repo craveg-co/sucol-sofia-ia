@@ -1236,7 +1236,9 @@ _PATRON_RECHAZO_CORTO = re.compile(
 _PATRON_CIERRE_CONVERSACION = re.compile(
     r"^\s*(gracias|muchas gracias|mil gracias|listo gracias|ok gracias|"
     r"con la informaci[oó]n( actual)? (est[aá] )?bien|"
-    r"con eso (est[aá] )?bien|por ahora no|no muchas gracias|no gracias)\s*[.!?]*\s*$",
+    r"con eso (est[aá] )?bien|por ahora no|no por ahora|ahora no|"
+    r"no en este momento|en este momento no|m[aá]s adelante|"
+    r"lo reviso despu[eé]s|no muchas gracias|no gracias)\s*[.!?]*\s*$",
     re.IGNORECASE,
 )
 
