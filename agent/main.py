@@ -648,8 +648,8 @@ async def webhook_handler(request: Request):
                     proyecto_slug=proyecto_slug,
                     proyecto=proyecto,
                 )
-            except Exception as e:
-                logger.error(f"Error generando respuesta para {telefono}: {e}")
+            except Exception:
+                logger.exception(f"Error generando respuesta para {telefono}")
                 respuesta = _mensaje_error()
 
             # ── Guardar memoria y enviar (silenciosos si fallan)

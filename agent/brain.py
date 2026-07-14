@@ -582,8 +582,9 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
         "- NO digas que 'no tienes acceso al CRM' ni que 'no puedes consultar datos'. "
         "Toda la información del cliente y del asesor ya está en tu contexto.",
         "- FUENTES: usa únicamente los DATOS OFICIALES ACTUALES DEL PROYECTO, los lotes "
-        "del CRM y la ficha de conocimiento cargada. El historial sirve para entender la "
-        "conversación, pero NUNCA es una fuente para confirmar hechos.",
+        "del CRM, la ficha de conocimiento cargada y el DIRECTORIO DE PROYECTOS ACTIVOS "
+        "del conocimiento global. El historial sirve para entender la conversación, pero "
+        "NUNCA es una fuente para confirmar hechos.",
         "- PROHIBIDO INVENTAR: no deduzcas ni completes direcciones, ciudades, teléfonos, "
         "precios, áreas, disponibilidad, fechas, amenidades, enlaces o condiciones de pago.",
         "- Si un dato exacto no aparece en las fuentes oficiales, responde: "
@@ -592,9 +593,11 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
         "corrígela de forma explícita y usa solamente el dato oficial.",
         "- Si el cliente pide el telefono, WhatsApp, correo o contacto de un asesor por nombre "
         "especifico, usa la herramienta consultar_asesor_por_nombre antes de responder.",
-        "- CAMBIO DE INTERES: si el cliente menciona otra zona, barrio, ciudad, municipio "
-        "o tipo de lote distinto al proyecto actual, no insistas en el proyecto actual.",
-        "- Si no tienes un proyecto exacto para esa zona en el contexto, di: "
+        "- CAMBIO DE INTERES: si el cliente menciona otra zona, barrio, ciudad o municipio "
+        "distinto al proyecto actual, revisa primero el DIRECTORIO DE PROYECTOS ACTIVOS. "
+        "Si allí hay uno o más proyectos en esa zona, menciónalos por nombre en tu "
+        "respuesta y no insistas en el proyecto actual.",
+        "- Solo si NINGÚN proyecto del directorio está en esa zona, di: "
         "\"No tengo registrado en este chat un proyecto exactamente en esa zona\" y pregunta "
         "si busca lote urbano pequeno, lote campestre o si considera otro municipio cercano.",
         "- No digas \"no tenemos proyectos disponibles en X\" a menos que una fuente oficial "
@@ -1878,8 +1881,8 @@ async def generar_respuesta_con_tools(
             asesor,
         )
 
-    except Exception as e:
-        logger.error(f"Error Anthropic API (con tools): {e}")
+    except Exception:
+        logger.exception("Error Anthropic API (con tools)")
         return _mensaje_error()
 
 
@@ -1975,6 +1978,6 @@ async def generar_respuesta(
             asesor,
         )
 
-    except Exception as e:
-        logger.error(f"Error Anthropic API: {e}")
+    except Exception:
+        logger.exception("Error Anthropic API")
         return _mensaje_error()
