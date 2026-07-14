@@ -1,4 +1,4 @@
-# agent/brain.py — Cerebro de Sofía: conexión con Gemini API
+# agent/brain.py — Cerebro de Sofía: conexión con la Anthropic Messages API
 # Generado por AgentKit para Sucol Soluciones Urbanísticas
 
 """
@@ -19,117 +19,96 @@ from dotenv import load_dotenv
 load_dotenv()
 logger = logging.getLogger("agentkit")
 
-_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-_GEMINI_BASE_URL = os.getenv("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta")
+# claude-haiku-4-5: el modelo más económico y rápido de la familia actual
+# ($1.00 / $5.00 por millón de tokens input/output), suficiente para las
+# respuestas cortas (max_tokens=1024) de un bot de atención por WhatsApp.
+_ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5")
+_ANTHROPIC_BASE_URL = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
+_ANTHROPIC_VERSION = "2023-06-01"
 
 
-class _GeminiCompatMessages:
+def _bloque_a_json(block) -> dict:
+    """Convierte un bloque de contenido (dict ya serializable o SimpleNamespace
+    devuelto por una respuesta previa) al formato JSON que espera la API."""
+    if isinstance(block, dict):
+        return block
+    tipo = getattr(block, "type", None)
+    if tipo == "text":
+        return {"type": "text", "text": block.text}
+    if tipo == "tool_use":
+        return {"type": "tool_use", "id": block.id, "name": block.name, "input": block.input}
+    return {"type": tipo}
+
+
+def _serializar_mensaje(mensaje: dict) -> dict:
+    content = mensaje.get("content")
+    if isinstance(content, list):
+        return {"role": mensaje["role"], "content": [_bloque_a_json(b) for b in content]}
+    return {"role": mensaje["role"], "content": content}
+
+
+def _bloque_desde_json(block: dict) -> SimpleNamespace:
+    tipo = block.get("type")
+    if tipo == "text":
+        return SimpleNamespace(type="text", text=block.get("text", ""))
+    if tipo == "tool_use":
+        return SimpleNamespace(
+            type="tool_use",
+            id=block.get("id"),
+            name=block.get("name"),
+            input=block.get("input", {}),
+        )
+    return SimpleNamespace(type=tipo)
+
+
+class _AnthropicMessages:
     async def create(self, model: str, max_tokens: int, system: str, messages: list, tools: list | None = None):
-        api_key = os.getenv("GEMINI_API_KEY")
+        api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
-            raise RuntimeError("GEMINI_API_KEY no configurada")
-
-        contents = []
-        for message in messages:
-            role = message.get("role")
-            content = message.get("content")
-            if isinstance(content, str):
-                contents.append({
-                    "role": "model" if role == "assistant" else "user",
-                    "parts": [{"text": content}],
-                })
-                continue
-            if role == "assistant" and isinstance(content, list):
-                parts = []
-                for block in content:
-                    if getattr(block, "type", None) == "text":
-                        parts.append({"text": getattr(block, "text", "")})
-                    elif getattr(block, "type", None) == "tool_use":
-                        parts.append({
-                            "functionCall": {
-                                "name": block.name,
-                                "args": block.input,
-                            }
-                        })
-                contents.append({"role": "model", "parts": parts or [{"text": ""}]})
-                continue
-            if role == "user" and isinstance(content, list):
-                for block in content:
-                    if isinstance(block, dict) and block.get("type") == "tool_result":
-                        contents.append({
-                            "role": "user",
-                            "parts": [{
-                                "functionResponse": {
-                                    "name": block["tool_use_id"].split(":", 1)[0],
-                                    "response": {"result": block["content"]},
-                                }
-                            }],
-                        })
-
-        gemini_tools = None
-        if tools:
-            gemini_tools = [{
-                "functionDeclarations": [
-                    {
-                        "name": tool["name"],
-                        "description": tool.get("description", ""),
-                        "parameters": tool.get("input_schema", {"type": "object", "properties": {}}),
-                    }
-                    for tool in tools
-                ]
-            }]
+            raise RuntimeError("ANTHROPIC_API_KEY no configurada")
 
         payload = {
-            "systemInstruction": {"parts": [{"text": system}]},
-            "contents": contents,
-            "generationConfig": {"maxOutputTokens": max_tokens},
+            "model": model,
+            "max_tokens": max_tokens,
+            "system": system,
+            "messages": [_serializar_mensaje(m) for m in messages],
         }
-        if gemini_tools:
-            payload["tools"] = gemini_tools
+        if tools:
+            payload["tools"] = tools
 
-        url = f"{_GEMINI_BASE_URL}/models/{_GEMINI_MODEL}:generateContent"
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": _ANTHROPIC_VERSION,
+            "content-type": "application/json",
+        }
         async with httpx.AsyncClient(timeout=30) as http:
-            response = await http.post(url, params={"key": api_key}, json=payload)
+            response = await http.post(
+                f"{_ANTHROPIC_BASE_URL}/v1/messages",
+                headers=headers,
+                json=payload,
+            )
             response.raise_for_status()
             data = response.json()
 
-        parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
-        usage_data = data.get("usageMetadata", {})
+        usage_data = data.get("usage", {})
         usage = SimpleNamespace(
-            input_tokens=usage_data.get("promptTokenCount", 0),
-            output_tokens=usage_data.get("candidatesTokenCount", 0),
+            input_tokens=usage_data.get("input_tokens", 0),
+            output_tokens=usage_data.get("output_tokens", 0),
         )
-
-        function_calls = [part["functionCall"] for part in parts if "functionCall" in part]
-        if function_calls:
-            content = []
-            for part in parts:
-                if "text" in part:
-                    content.append(SimpleNamespace(type="text", text=part["text"]))
-            for idx, function_call in enumerate(function_calls):
-                name = function_call.get("name", "")
-                content.append(SimpleNamespace(
-                    type="tool_use",
-                    id=f"{name}:{idx}",
-                    name=name,
-                    input=function_call.get("args", {}),
-                ))
-            return SimpleNamespace(stop_reason="tool_use", content=content, usage=usage)
-
-        text = "".join(part.get("text", "") for part in parts)
+        content = [_bloque_desde_json(b) for b in data.get("content", [])]
         return SimpleNamespace(
-            stop_reason="end_turn",
-            content=[SimpleNamespace(type="text", text=text)],
+            stop_reason=data.get("stop_reason"),
+            content=content,
             usage=usage,
         )
 
 
-class _GeminiCompatClient:
+class _AnthropicClient:
     def __init__(self):
-        self.messages = _GeminiCompatMessages()
+        self.messages = _AnthropicMessages()
 
 
-client = _GeminiCompatClient()
+client = _AnthropicClient()
 
 _BASE_DIR = Path(__file__).resolve().parent.parent
 _KNOWLEDGE_DIR = _BASE_DIR / "knowledge"
@@ -1813,7 +1792,7 @@ async def generar_respuesta_con_tools(
 
     try:
         response = await client.messages.create(
-            model=_GEMINI_MODEL,
+            model=_ANTHROPIC_MODEL,
             max_tokens=1024,
             system=prompt_final,
             messages=mensajes,
@@ -1875,7 +1854,7 @@ async def generar_respuesta_con_tools(
             ]
 
             response2 = await client.messages.create(
-                model=_GEMINI_MODEL,
+                model=_ANTHROPIC_MODEL,
                 max_tokens=1024,
                 system=prompt_final,
                 messages=mensajes_con_resultado,
@@ -1900,7 +1879,7 @@ async def generar_respuesta_con_tools(
         )
 
     except Exception as e:
-        logger.error(f"Error Gemini API (con tools): {e}")
+        logger.error(f"Error Anthropic API (con tools): {e}")
         return _mensaje_error()
 
 
@@ -1915,7 +1894,7 @@ async def generar_respuesta(
     proyecto: dict | None = None,
 ) -> str:
     """
-    Genera una respuesta usando Gemini API.
+    Genera una respuesta usando la Anthropic API.
     El system prompt se construye desde config/prompts.yaml + knowledge/global.md
     + knowledge/proyectos/[proyecto_slug].md (si se conoce el proyecto).
     """
@@ -1981,7 +1960,7 @@ async def generar_respuesta(
 
     try:
         response = await client.messages.create(
-            model=_GEMINI_MODEL,
+            model=_ANTHROPIC_MODEL,
             max_tokens=1024,
             system=prompt_final,
             messages=mensajes,
@@ -1997,5 +1976,5 @@ async def generar_respuesta(
         )
 
     except Exception as e:
-        logger.error(f"Error Gemini API: {e}")
+        logger.error(f"Error Anthropic API: {e}")
         return _mensaje_error()

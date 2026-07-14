@@ -25,7 +25,14 @@
       "Bash(Remove-Item \"C:\\\\Users\\\\Cristhian Rave\\\\Documents\\\\GitHub\\\\sucol-sofia-ia\\\\knowledge\\\\prompt_sofia_cascata_v1.md\" -Force)",
       "Bash(Write-Host \"Eliminados los archivos monolíticos\")",
       "Bash(python -m unittest discover -s tests -v)",
-      "Bash(./venv/Scripts/python.exe -m unittest discover -s tests -v)"
+      "Bash(./venv/Scripts/python.exe -m unittest discover -s tests -v)",
+      "Bash(gh repo *)",
+      "PowerShell(gh repo view craveg-co/sucol-sofia-ia --json isPrivate,visibility 2>&1)",
+      "Bash(./venv/Scripts/python.exe -m unittest discover -s tests)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(./venv/Scripts/python.exe -c ' *)",
+      "Bash(ANTHROPIC_API_KEY=dummy ./venv/Scripts/python.exe -c ' *)"
     ]
   }
 }

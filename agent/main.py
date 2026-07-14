@@ -49,6 +49,9 @@ load_dotenv()
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 log_level = logging.DEBUG if ENVIRONMENT == "development" else logging.INFO
 logging.basicConfig(level=log_level)
+# httpx registra la URL completa de cada request en INFO, incluyendo API keys
+# como query param (ej. Gemini). Se sube a WARNING para no exponer secretos en logs.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger("agentkit")
 
 proveedor = obtener_proveedor()

@@ -17,10 +17,6 @@ env/
 dist/
 build/
 
-# Knowledge (archivos privados del negocio)
-knowledge/*
-!knowledge/.gitkeep
-
 # Session state
 config/session.yaml
 
