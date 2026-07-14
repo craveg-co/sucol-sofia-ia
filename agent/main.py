@@ -23,6 +23,7 @@ from agent.brain import (
     clasificar_descarte_sofia,
     generar_respuesta_con_tools,
     separar_mensajes_whatsapp,
+    _mensaje_error,
 )
 from agent.memory import inicializar_db, guardar_mensaje, obtener_historial
 from agent.providers import obtener_proveedor
@@ -646,7 +647,7 @@ async def webhook_handler(request: Request):
                 )
             except Exception as e:
                 logger.error(f"Error generando respuesta para {telefono}: {e}")
-                respuesta = "Hola, estoy teniendo un inconveniente técnico. Por favor intenta en unos minutos."
+                respuesta = _mensaje_error()
 
             # ── Guardar memoria y enviar (silenciosos si fallan)
             try:

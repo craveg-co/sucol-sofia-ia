@@ -5,6 +5,8 @@ from agent.brain import (
     _cargar_knowledge,
     _corregir_disponibilidad,
     _construir_contexto_crm,
+    _mensaje_error,
+    _mensaje_fallback,
     _procesar_respuesta_cliente,
     _quitar_mencion_asesor_no_solicitada,
     _respuesta_rango_horario,
@@ -513,6 +515,16 @@ class DatosOficialesTest(unittest.TestCase):
 
         self.assertIn("recorrido virtual 360°", mensajes[1])
         self.assertNotIn("agendar una visita", mensajes[1])
+
+    def test_mensaje_de_error_no_lleva_cta_pegada(self):
+        mensajes = separar_mensajes_whatsapp(_mensaje_error(), {"slug": "bora"})
+
+        self.assertEqual(mensajes, [_mensaje_error()])
+
+    def test_mensaje_de_fallback_no_lleva_cta_pegada(self):
+        mensajes = separar_mensajes_whatsapp(_mensaje_fallback(), None)
+
+        self.assertEqual(mensajes, [_mensaje_fallback()])
 
 
 if __name__ == "__main__":

@@ -1080,6 +1080,9 @@ def separar_mensajes_whatsapp(
     if not texto:
         return []
 
+    if texto in (_mensaje_error(), _mensaje_fallback()):
+        return [texto]
+
     inicio_pregunta = texto.rfind("¿")
     if inicio_pregunta > 40:
         informacion = texto[:inicio_pregunta].strip()
