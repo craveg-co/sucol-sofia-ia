@@ -110,6 +110,116 @@ def _es_mensaje_formulario_meta(texto: str) -> bool:
     )
 
 
+def _es_autorespuesta_no_disponible(texto: str) -> bool:
+    """
+    Detecta contestadores/autorespuestas gen?ricas de WhatsApp.
+
+    No todos los mensajes con "no puedo responder" son autom?ticos. Por eso este
+    detector exige se?ales combinadas de autorespuesta y descarta primero si hay
+    intenci?n comercial expl?cita.
+    """
+    texto_norm = _normalizar_texto_formulario(texto)
+    if not texto_norm:
+        return False
+
+    intenciones_comerciales = (
+        "precio",
+        "precios",
+        "cuanto vale",
+        "cu?nto vale",
+        "valor",
+        "cotizacion",
+        "cotizaci?n",
+        "lote",
+        "lotes",
+        "proyecto",
+        "financiacion",
+        "financiaci?n",
+        "cuotas",
+        "visita",
+        "ubicacion",
+        "ubicaci?n",
+        "area",
+        "?rea",
+        "metros",
+        "bora",
+        "buenavista",
+        "vientos",
+        "ginebra",
+        "santa elena",
+        "cascata",
+    )
+    if any(intencion in texto_norm for intencion in intenciones_comerciales):
+        return False
+
+    grupos_senales = [
+        (
+            "no_disponible",
+            (
+                "no puedo responder",
+                "no puedo contestar",
+                "no puedo atender",
+                "no estoy disponible",
+                "estoy ocupado",
+                "estoy ocupada",
+                "fuera de horario",
+                "ausente",
+            ),
+        ),
+        (
+            "dejar_mensaje",
+            (
+                "dejame tu mensaje",
+                "deja tu mensaje",
+                "dejanos tu mensaje",
+                "deje su mensaje",
+                "puedes dejarme un mensaje",
+                "escribeme tu mensaje",
+            ),
+        ),
+        (
+            "contacto_posterior",
+            (
+                "me estare comunicando",
+                "me comunicare",
+                "te respondere",
+                "te contestare",
+                "lo mas pronto posible",
+                "tan pronto pueda",
+                "en cuanto pueda",
+            ),
+        ),
+        (
+            "saludo_automatico",
+            (
+                "gracias por comunicarte",
+                "gracias por contactarte",
+                "gracias por escribir",
+                "gracias por llamar",
+                "bienvenido",
+                "bienvenida",
+            ),
+        ),
+    ]
+
+    puntaje = 0
+    for _, patrones in grupos_senales:
+        if any(patron in texto_norm for patron in patrones):
+            puntaje += 1
+
+    cierres_genericos = (
+        "dios te bendiga",
+        "bendiciones",
+        "te mando un abrazo",
+        "feliz dia",
+        "feliz tarde",
+        "feliz noche",
+    )
+    if any(patron in texto_norm for patron in cierres_genericos):
+        puntaje += 1
+
+    return puntaje >= 2 and len(texto_norm) >= 45
+
 def _bloquea_primer_contacto_por_contacto_activo(contacto: dict | None, proyecto_slug: str | None) -> bool:
     """
     Evita enviar una plantilla inicial si el telefono ya tiene otro proyecto activo.
@@ -483,6 +593,13 @@ async def webhook_handler(request: Request):
                 logger.info(
                     "Mensaje automatico de formulario Meta ignorado para evitar "
                     f"doble primer contacto ({telefono}, id={msg.mensaje_id})"
+                )
+                continue
+
+            if _es_autorespuesta_no_disponible(msg.texto):
+                logger.info(
+                    "Autorespuesta/no disponible ignorada; no se marca como respuesta real "
+                    f"({telefono}, id={msg.mensaje_id})"
                 )
                 continue
 
