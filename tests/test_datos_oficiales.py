@@ -158,6 +158,32 @@ class DatosOficialesTest(unittest.TestCase):
         self.assertIn("brochure de Buenavista", respuesta)
         self.assertIn("1K-tjU8z0iJuFr-e9hCSPhcoJxcE5xmt0", respuesta)
 
+    def test_brochure_con_mencion_de_visita_no_devuelve_direccion(self):
+        proyecto = {
+            "slug": "buenavista",
+            "nombre": "Buenavista",
+            "direccion_visita": PROYECTO["direccion_visita"],
+            "google_maps_url": PROYECTO["google_maps_url"],
+        }
+        mensaje = "Tienes brochure para ver mientras cuento con tiempo para la visita presencial?"
+
+        recursos = _respuesta_recursos_proyecto(mensaje, proyecto)
+        visita = _respuesta_operativa_visita(mensaje, proyecto)
+
+        self.assertIn("brochure de Buenavista", recursos)
+        self.assertIsNone(visita)
+        self.assertNotIn(PROYECTO["direccion_visita"], recursos)
+
+    def test_info_por_este_medio_prioriza_material_digital(self):
+        respuesta = _respuesta_recursos_proyecto(
+            "Regálame información por este medio porfa",
+            {"slug": "bora", "nombre": "Bora"},
+        )
+
+        self.assertIn("brochure de Bora", respuesta)
+        self.assertIn("por aquí mismo", respuesta)
+        self.assertNotIn("agendar", respuesta.lower())
+
     def test_brochure_prioriza_link_del_crm(self):
         respuesta = _respuesta_recursos_proyecto(
             "Tienes el PDF?",
@@ -397,7 +423,7 @@ class DatosOficialesTest(unittest.TestCase):
         self.assertIn("Sí tenemos opciones disponibles", respuesta)
         self.assertIn("48", respuesta)
         self.assertIn("72", respuesta)
-        self.assertIn("agendar una visita", respuesta)
+        self.assertIn("financiación", respuesta)
 
     def test_reemplaza_fragmento_para_el_proyecto(self):
         respuesta = _procesar_respuesta_cliente(
@@ -416,7 +442,7 @@ class DatosOficialesTest(unittest.TestCase):
         self.assertIn("48", respuesta)
         self.assertIn("145.18", respuesta)
         self.assertIn("precios desde $28,142,985", respuesta)
-        self.assertIn("agendar una visita", respuesta)
+        self.assertIn("financiación", respuesta)
 
     def test_filtro_de_asesora_no_puede_dejar_respuesta_fragmentada(self):
         respuesta = _procesar_respuesta_cliente(
@@ -450,8 +476,8 @@ class DatosOficialesTest(unittest.TestCase):
         )
 
         self.assertEqual(len(mensajes), 2)
-        self.assertIn("agendar una visita", mensajes[1])
-        self.assertIn("programar una llamada", mensajes[1])
+        self.assertIn("áreas", mensajes[1])
+        self.assertIn("financiación", mensajes[1])
 
     def test_cascata_no_ofrece_visita_directa_en_cta_generada(self):
         mensajes = separar_mensajes_whatsapp(

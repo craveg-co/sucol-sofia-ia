@@ -591,8 +591,10 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
         "Si tu respuesta tiene más de 4 líneas, córtala.",
         "- NO escales al asesor humano solo porque el cliente hizo una pregunta informativa. "
         "Respóndela tú directamente con la información de tu ficha.",
-        "- PROACTIVIDAD: después de responder, invita de forma natural a agendar una visita, "
-        "una llamada o una cita virtual según el proyecto. Sofía conduce el proceso.",
+        "- PROACTIVIDAD: después de responder, invita de forma natural a un siguiente paso, "
+        "pero respeta la intención del cliente. Si pide información por este medio, brochure, "
+        "PDF, fotos, algo digital o dice que debe revisarlo con su pareja/familia, primero "
+        "entrégale material o un resumen concreto y NO lo empujes de inmediato a visita o llamada.",
         "- ASESOR: no menciones que el cliente tiene asesor asignado, ni su nombre, teléfono "
         "o correo. No ofrezcas 'conectarlo con su asesor'. Solo puedes hacerlo si el cliente "
         "pide explícitamente hablar con una persona o solicita el contacto de un asesor.",
@@ -625,6 +627,9 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
         "amable, sin ofrecer visita, llamada, cita virtual ni mas informacion.",
         "- Si el cliente pregunta por medidas, areas o tamanos de lotes, responde directamente "
         "con el rango o areas oficiales disponibles. No cambies a una invitacion generica.",
+        "- Si el cliente pregunta por financiacion, responde condiciones registradas y pide el "
+        "dato minimo para simular cuotas (lote de interes, cuota inicial o presupuesto). No "
+        "reemplaces la respuesta por una llamada si todavia quiere informacion por WhatsApp.",
         "- La fecha de hoy es: " + _fecha_colombia(),
         "- Usa esa fecha exacta siempre que necesites referenciar el día de hoy.",
     ]
@@ -802,6 +807,13 @@ _PATRON_BROCHURE_PROYECTO = re.compile(
     re.IGNORECASE,
 )
 
+_PATRON_INFO_DIGITAL_PROYECTO = re.compile(
+    r"\b(por\s+(?:este\s+)?medio|por\s+aqu[ií]|algo\s+digital|material\s+digital|"
+    r"para\s+(?:yo\s+)?(?:guiarme|revisar|ver)|mientras\s+(?:se\s+)?(?:cuenta|coordina)|"
+    r"lo\s+(?:hablo|reviso|miro)\s+con\s+mi\s+(?:esposa|esposo|pareja|familia))\b",
+    re.IGNORECASE,
+)
+
 _BROCHURES_POR_SLUG = {
     "buenavista": "https://drive.google.com/file/d/1K-tjU8z0iJuFr-e9hCSPhcoJxcE5xmt0/view?usp=share_link",
     "vientos_de_ginebra": "https://drive.google.com/file/d/19OKqC1txQhXk3BEanYG3HjJ_LC-GUL9K/view?usp=share_link",
@@ -946,8 +958,8 @@ def _corregir_disponibilidad(
     logger.error("Respuesta: falsa indisponibilidad reemplazada con inventario CRM")
     return (
         f"Sí tenemos opciones disponibles actualmente en {nombre}{detalle}. "
-        "Puedo mostrarte precios y alternativas o agendar una visita, llamada o cita virtual. "
-        "¿Cuál opción prefieres?"
+        "Puedo mostrarte precios, alternativas o financiación por este medio. "
+        "¿Qué quieres revisar primero?"
     )
 
 
@@ -991,13 +1003,13 @@ def _respuesta_resumen_crm(
 
         return (
             f"{nombre} tiene {', '.join(detalles)} según el inventario actual. "
-            "Puedo ampliarte características y financiación, o agendar una visita, "
-            "llamada o cita virtual. ¿Qué deseas conocer primero?"
+            "Puedo ampliarte características, financiación o comparar opciones por este medio. "
+            "¿Qué deseas conocer primero?"
         )
 
     return (
-        f"Puedo darte la información oficial disponible de {nombre} y ayudarte a agendar "
-        "una visita, llamada o cita virtual. ¿Qué aspecto quieres conocer primero?"
+        f"Puedo darte la información oficial disponible de {nombre} por este medio. "
+        "¿Qué aspecto quieres conocer primero?"
     )
 
 
@@ -1080,8 +1092,7 @@ def separar_mensajes_whatsapp(
         cta = "¿Quieres recibir más información o agendar primero el recorrido virtual 360°?"
     else:
         cta = (
-            "¿Qué te gustaría hacer: recibir más información, agendar una visita "
-            "o programar una llamada?"
+            "¿Qué te gustaría revisar ahora: áreas, precios o financiación?"
         )
     return [texto, cta]
 
@@ -1097,6 +1108,11 @@ def _respuesta_operativa_visita(
     CRM o de una política explícita del proyecto, nunca se delegan al modelo.
     """
     if not proyecto or not _PATRON_PREGUNTA_VISITA.search(mensaje or ""):
+        return None
+    if (
+        _PATRON_BROCHURE_PROYECTO.search(mensaje or "")
+        or _PATRON_INFO_DIGITAL_PROYECTO.search(mensaje or "")
+    ):
         return None
 
     slug = str(proyecto.get("slug") or "").lower()
@@ -1162,12 +1178,13 @@ def _respuesta_recursos_proyecto(
     pide_imagenes = bool(_PATRON_IMAGENES_PROYECTO.search(mensaje or ""))
     pide_ubicacion = bool(_PATRON_UBICACION_PROYECTO.search(mensaje or ""))
     pide_brochure = bool(_PATRON_BROCHURE_PROYECTO.search(mensaje or ""))
-    if not proyecto or not (pide_imagenes or pide_ubicacion or pide_brochure):
+    pide_info_digital = bool(_PATRON_INFO_DIGITAL_PROYECTO.search(mensaje or ""))
+    if not proyecto or not (pide_imagenes or pide_ubicacion or pide_brochure or pide_info_digital):
         return None
 
     nombre = proyecto.get("nombre") or "este proyecto"
     partes = []
-    if pide_brochure:
+    if pide_brochure or pide_info_digital:
         brochure_url = _url_brochure_proyecto(proyecto)
         if brochure_url:
             partes.append(f"Claro, te comparto el brochure de {nombre}: {brochure_url}")
@@ -1203,6 +1220,9 @@ def _respuesta_recursos_proyecto(
             partes.append(
                 "Todavía no tengo registrado el enlace oficial del terreno para compartirte la ubicación exacta."
             )
+
+    if pide_info_digital and not (pide_ubicacion or pide_imagenes):
+        partes.append("Si quieres, por aquí mismo te ayudo a revisar áreas, precios o financiación.")
 
     return " ".join(partes)
 
