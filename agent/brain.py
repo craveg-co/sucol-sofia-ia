@@ -286,6 +286,40 @@ def _limpiar_prompt(prompt: str) -> str:
     return prompt
 
 
+# Estructura estándar SUCOL (5% sep + 25% CI a 6 meses + 70% a 60 meses).
+# Excepciones documentadas en knowledge/global.md — mismo slug que en proyectos.slug.
+_FINANCIACION_ESTANDAR = {
+    "separacion_pct": 0.05, "cuota_inicial_pct": 0.25, "cuota_inicial_meses": 6, "saldo_meses": 60,
+}
+_FINANCIACION_PROYECTOS = {
+    "reservas_ilama": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.15, "cuota_inicial_meses": 6, "saldo_meses": 24},
+    "maloka_mallki": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.15, "cuota_inicial_meses": 2, "saldo_meses": 18},
+    "cascata": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.10, "cuota_inicial_meses": 2, "saldo_meses": 36},
+}
+
+
+def _estructura_financiacion(proyecto: dict | None) -> dict:
+    slug = str((proyecto or {}).get("slug") or "").lower()
+    return _FINANCIACION_PROYECTOS.get(slug, _FINANCIACION_ESTANDAR)
+
+
+def _simular_financiacion(precio: float, estructura: dict) -> dict:
+    """Calcula separación/cuota inicial/saldo en Python — nunca se le pide a Claude que haga esta aritmética."""
+    precio = float(precio)
+    separacion = precio * estructura["separacion_pct"]
+    cuota_inicial_total = precio * estructura["cuota_inicial_pct"]
+    cuota_inicial_mensual = cuota_inicial_total / estructura["cuota_inicial_meses"]
+    saldo_pct = 1 - estructura["separacion_pct"] - estructura["cuota_inicial_pct"]
+    saldo_mensual = (precio * saldo_pct) / estructura["saldo_meses"]
+    return {
+        "separacion": separacion,
+        "cuota_inicial_mensual": cuota_inicial_mensual,
+        "cuota_inicial_meses": estructura["cuota_inicial_meses"],
+        "saldo_mensual": saldo_mensual,
+        "saldo_meses": estructura["saldo_meses"],
+    }
+
+
 def _construir_contexto_crm(
     lead: dict | None,
     lotes: list[dict],
@@ -393,6 +427,7 @@ def _construir_contexto_crm(
             except (TypeError, ValueError):
                 return (1, item[0])
 
+        estructura_fin = _estructura_financiacion(proyecto)
         grupos_ordenados = sorted(resumen_areas.items(), key=_orden_area)
         for area, grupo in grupos_ordenados[:30]:
             linea = f"- {area} m²: {grupo['cantidad']} disponible(s)"
@@ -404,6 +439,14 @@ def _construir_contexto_crm(
                     linea += f" | Precio CRM: ${minimo:,.0f}"
                 else:
                     linea += f" | Rango CRM: ${minimo:,.0f} a ${maximo:,.0f}"
+                sim = _simular_financiacion(minimo, estructura_fin)
+                linea += (
+                    f" | Simulación estándar sobre ${float(minimo):,.0f}: "
+                    f"separación ${sim['separacion']:,.0f}, "
+                    f"cuota inicial ≈ ${sim['cuota_inicial_mensual']:,.0f}/mes "
+                    f"x {sim['cuota_inicial_meses']} meses, "
+                    f"saldo ≈ ${sim['saldo_mensual']:,.0f}/mes x {sim['saldo_meses']} meses"
+                )
             partes.append(linea)
         if len(grupos_ordenados) > 30:
             partes.append(
@@ -612,6 +655,20 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
         "- Si el cliente pregunta por financiacion, responde condiciones registradas y pide el "
         "dato minimo para simular cuotas (lote de interes, cuota inicial o presupuesto). No "
         "reemplaces la respuesta por una llamada si todavia quiere informacion por WhatsApp.",
+        "- CALCULO DE CUOTAS: nunca calcules separacion, cuota inicial ni saldo mensual de "
+        "memoria. Usa EXCLUSIVAMENTE las cifras ya calculadas en 'Simulación estándar' dentro "
+        "de la seccion de lotes del CRM. Si el lote o precio exacto que pide el cliente no "
+        "tiene una simulacion en el contexto, di que no tienes esa cifra exacta y que la "
+        "confirmas con el equipo de SUCOL — no inventes ni estimes el numero tu misma.",
+        "- CIERRE FALSO: frases como 'quedo atento', 'quedo pendiente', 'estoy pendiente', "
+        "'ok', 'dale' o 'listo' indican que el cliente SIGUE interesado y espera tu siguiente "
+        "mensaje — NO son un cierre de conversacion. No respondas con una despedida tipo "
+        "'quedo atenta si mas adelante...'. Continua la conversacion con normalidad: confirma "
+        "brevemente y haz la siguiente pregunta o propuesta relevante.",
+        "- AGENDAMIENTO SIN FECHA: si el cliente ya confirmo que quiere agendar (ej. 'si', "
+        "'sii', 'dale', 'listo') pero no dio dia ni hora, no repitas la misma pregunta abierta "
+        "una segunda vez. Propon 2 franjas concretas de dia y hora dentro del horario de "
+        "asesores para que el cliente solo tenga que elegir una.",
         "- La fecha de hoy es: " + _fecha_colombia(),
         "- Usa esa fecha exacta siempre que necesites referenciar el día de hoy.",
     ]
