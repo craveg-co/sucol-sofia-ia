@@ -664,24 +664,36 @@ def _direccion_coincide_con_oficial(texto: str, proyecto: dict | None) -> bool:
     return bool(numeros_oficiales) and numeros_oficiales.issubset(numeros_respuesta)
 
 
+_PATRON_NEGACION_ZONA = re.compile(
+    r"no tengo registrado en este chat un proyecto exactamente en ([^.!?\n]+)",
+    re.IGNORECASE,
+)
+
+
 def _sanitizar_historial(
     historial: list[dict],
     proyecto: dict | None,
 ) -> list[dict]:
     """
     Elimina respuestas previas del asistente que contienen direcciones no respaldadas
-    por el CRM. Evita que una alucinación guardada se convierta en falsa fuente.
+    por el CRM, o negaciones de cobertura de zona que ya quedaron obsoletas (por
+    ejemplo, si el directorio de proyectos activos ahora sí cubre esa zona). Evita
+    que una alucinación o un error guardado se convierta en falsa fuente repetida.
     """
     historial = _recortar_historial_desde_inicio_proyecto(historial, proyecto)
+    slug_actual = str((proyecto or {}).get("slug") or "").strip()
     limpio = []
     for mensaje in historial:
         contenido = mensaje.get("content", "")
-        if (
-            mensaje.get("role") == "assistant"
-            and _PATRON_DIRECCION.search(contenido)
-            and not _direccion_coincide_con_oficial(contenido, proyecto)
-        ):
+        if mensaje.get("role") != "assistant":
+            limpio.append(mensaje)
+            continue
+        if _PATRON_DIRECCION.search(contenido) and not _direccion_coincide_con_oficial(contenido, proyecto):
             logger.warning("Historial: dirección no oficial descartada del contexto")
+            continue
+        negacion = _PATRON_NEGACION_ZONA.search(contenido)
+        if negacion and _zona_cubierta_por_otro_proyecto(negacion.group(1).strip(), slug_actual):
+            logger.warning("Historial: negación de zona obsoleta descartada del contexto")
             continue
         limpio.append(mensaje)
     return limpio

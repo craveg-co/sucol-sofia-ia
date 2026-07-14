@@ -356,6 +356,33 @@ class DatosOficialesTest(unittest.TestCase):
             all("13-39" not in mensaje["content"] for mensaje in limpio)
         )
 
+    def test_historial_descarta_negacion_de_zona_obsoleta(self):
+        # El proyecto activo del chat (Cascata, en Cali/Pance) no es de Jamundí,
+        # pero el historial guardó una negación de cobertura de una consulta previa
+        # a que existiera el fix. Esa negación ya es obsoleta porque SUCOL sí tiene
+        # otros proyectos en Jamundí (Bora, Buenavista, Santa Elena, Praderas de
+        # Guachinte) y no debe repetirse ni servir de precedente para el modelo.
+        proyecto = {"slug": "cascata", "nombre": "Cascata Vida Campestre"}
+        historial = [
+            {"role": "user", "content": "Que proyecto tienes en Jamundí"},
+            {
+                "role": "assistant",
+                "content": (
+                    "No tengo registrado en este chat un proyecto exactamente en "
+                    "Jamundí. ¿Buscas un lote urbano pequeño o también "
+                    "considerarías un lote campestre en otro municipio cercano?"
+                ),
+            },
+            {"role": "user", "content": "Gracias"},
+        ]
+
+        limpio = _sanitizar_historial(historial, proyecto)
+
+        self.assertEqual(len(limpio), 2)
+        self.assertTrue(
+            all("No tengo registrado" not in mensaje["content"] for mensaje in limpio)
+        )
+
     def test_respuesta_con_direccion_inventada_se_reemplaza(self):
         respuesta = _validar_respuesta_oficial(
             "Estamos en la Carrera 10 #13-39, oficina 302.",
