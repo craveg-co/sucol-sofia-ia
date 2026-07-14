@@ -1075,6 +1075,24 @@ def _respuesta_solicitud_info_proyecto(
     return _respuesta_resumen_crm(proyecto, lotes)
 
 
+_PATRON_PREGUNTA_AGENDAMIENTO = re.compile(
+    r"(d[ií]a y hora|hora exacta|qu[eé] d[ií]a|\d{1,2}\s*(?:am|pm)|te sirve|"
+    r"prefieres.*hora|agendar|confirmar tu visita|confirmar la cita)",
+    re.IGNORECASE,
+)
+
+
+def _en_medio_de_agendamiento(historial: list[dict] | None) -> bool:
+    """Detecta si el último mensaje de Sofía dejó una pregunta de día/hora sin resolver."""
+    if not historial:
+        return False
+    for msg in reversed(historial):
+        if msg.get("role") != "assistant":
+            continue
+        return bool(_PATRON_PREGUNTA_AGENDAMIENTO.search(msg.get("content", "") or ""))
+    return False
+
+
 def _respuesta_es_incompleta(respuesta: str) -> bool:
     texto = re.sub(r"\s+", " ", respuesta or "").strip()
     if len(texto) < 45:
@@ -1091,6 +1109,7 @@ def _procesar_respuesta_cliente(
     proyecto: dict | None,
     lotes: list[dict],
     asesor: dict | None,
+    historial: list[dict] | None = None,
 ) -> str:
     if _menciona_proyecto_distinto(respuesta, proyecto):
         nombre = (proyecto or {}).get("nombre") or "el proyecto registrado"
@@ -1114,6 +1133,11 @@ def _procesar_respuesta_cliente(
         return respuesta
 
     logger.error(f"Respuesta incompleta reemplazada: {respuesta!r}")
+    if _en_medio_de_agendamiento(historial):
+        return (
+            "Disculpa, no me quedó claro. ¿Me confirmas el día y la hora "
+            "exactos que prefieres para tu visita?"
+        )
     return _respuesta_resumen_crm(proyecto, lotes)
 
 
@@ -1948,6 +1972,7 @@ async def generar_respuesta_con_tools(
             proyecto,
             lotes_disponibles or [],
             asesor,
+            historial,
         )
 
     except Exception:
@@ -2045,6 +2070,7 @@ async def generar_respuesta(
             proyecto,
             lotes_disponibles or [],
             asesor,
+            historial,
         )
 
     except Exception:

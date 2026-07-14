@@ -8,7 +8,7 @@
 | **Tipo** | Condominio cerrado campestre con amenidades tipo club |
 | **Total** | 136 lotes urbanizados (Promotora Vientos de Ginebra S.A.S. es el desarrollador; SUCOL es operador comercial autorizado) |
 | **Áreas** | Desde 168 m² hasta 607 m² |
-| **Precios** | Desde aproximadamente $103.000.000 a 36 meses de financiación |
+| **Precios** | Desde aproximadamente $103.000.000 |
 | **Pago** | Estándar SUCOL: 5% sep + 25% en 6 cuotas sin intereses + 70% a 60 meses SERCAPITAL. Descuento por contado |
 | **Amenidades** | Piscina, portería, zona de asados, senderos peatonales, conexión a servicios públicos |
 | **Estado** | Venta activa |
