@@ -1586,6 +1586,37 @@ def _texto_proyecto_para_matching(proyecto: dict | None) -> str:
     return _normalizar_texto(" ".join(str(p) for p in partes if p))
 
 
+_UBICACION_FICHA_PATRON = re.compile(
+    r"^\|\s*\*\*Ubicaci[oó]n\*\*\s*\|\s*(.+?)\s*\|\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _zona_cubierta_por_otro_proyecto(zona: str, slug_actual: str) -> bool:
+    """
+    Revisa las fichas de knowledge/proyectos/*.md (excluyendo la del proyecto
+    activo) para saber si SUCOL ya tiene otro proyecto registrado en esa zona.
+
+    Evita que Sofía niegue cobertura en una zona donde sí hay proyectos, solo
+    porque no coincide con el proyecto que el CRM tiene asignado a este chat.
+    """
+    zona_normalizada = _normalizar_texto(zona)
+    carpeta = _KNOWLEDGE_DIR / "proyectos"
+    if not carpeta.is_dir():
+        return False
+    for ruta in carpeta.glob("*.md"):
+        if slug_actual and ruta.stem == slug_actual:
+            continue
+        try:
+            contenido = ruta.read_text(encoding="utf-8")
+        except (OSError, IOError):
+            continue
+        coincidencia = _UBICACION_FICHA_PATRON.search(contenido)
+        if coincidencia and zona_normalizada in _normalizar_texto(coincidencia.group(1)):
+            return True
+    return False
+
+
 def _ultimo_asistente(historial: list[dict]) -> str:
     for mensaje in reversed(historial or []):
         if mensaje.get("role") == "assistant":
@@ -1633,6 +1664,9 @@ def _respuesta_cambio_interes(
         return None
 
     zona_legible = zonas_fuera[0].strip()
+    slug_actual = str((proyecto or {}).get("slug") or "").strip()
+    if _zona_cubierta_por_otro_proyecto(zona_legible, slug_actual):
+        return None
     return (
         f"No tengo registrado en este chat un proyecto exactamente en {zona_legible}. "
         "¿Buscas un lote urbano pequeño o también considerarías un lote campestre "

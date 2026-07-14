@@ -23,7 +23,9 @@
       "Bash(python -c ' *)",
       "Bash(Remove-Item \"C:\\\\Users\\\\Cristhian Rave\\\\Documents\\\\GitHub\\\\sucol-sofia-ia\\\\knowledge\\\\prompt_sofia_v3.md\" -Force)",
       "Bash(Remove-Item \"C:\\\\Users\\\\Cristhian Rave\\\\Documents\\\\GitHub\\\\sucol-sofia-ia\\\\knowledge\\\\prompt_sofia_cascata_v1.md\" -Force)",
-      "Bash(Write-Host \"Eliminados los archivos monolíticos\")"
+      "Bash(Write-Host \"Eliminados los archivos monolíticos\")",
+      "Bash(python -m unittest discover -s tests -v)",
+      "Bash(./venv/Scripts/python.exe -m unittest discover -s tests -v)"
     ]
   }
 }

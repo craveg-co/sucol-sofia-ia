@@ -105,6 +105,32 @@ class DatosOficialesTest(unittest.TestCase):
 
         self.assertIsNone(respuesta)
 
+    def test_pregunta_por_jamundi_no_niega_cobertura_si_hay_otros_proyectos_alli(self):
+        # El proyecto asignado en el CRM (Cascata, en Cali/Pance) no es de Jamundí,
+        # pero SUCOL sí tiene otros proyectos allí (Bora, Buenavista, Santa Elena,
+        # Praderas de Guachinte). Sofía no debe negar cobertura de forma automática.
+        proyecto = {"slug": "cascata", "nombre": "Cascata Vida Campestre"}
+
+        respuesta = _respuesta_cambio_interes(
+            "Que proyecto tienes en Jamundí",
+            [],
+            proyecto,
+        )
+
+        self.assertIsNone(respuesta)
+
+    def test_zona_sin_ningun_proyecto_si_niega_cobertura(self):
+        proyecto = {"slug": "cascata", "nombre": "Cascata Vida Campestre"}
+
+        respuesta = _respuesta_cambio_interes(
+            "Tienen algo en Potrerito?",
+            [],
+            proyecto,
+        )
+
+        self.assertIsNotNone(respuesta)
+        self.assertIn("Potrerito", respuesta)
+
     def test_ubicacion_buenavista_sale_de_la_ficha_oficial(self):
         respuesta = _respuesta_recursos_proyecto(
             "Quiero la ubicación exacta",
