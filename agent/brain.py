@@ -1093,14 +1093,25 @@ def _en_medio_de_agendamiento(historial: list[dict] | None) -> bool:
     return False
 
 
+_PATRON_PUNTUACION_FINAL = re.compile(r"[.!?…]['\"”)]*$")
+
+
 def _respuesta_es_incompleta(respuesta: str) -> bool:
+    """Detecta respuestas cortadas a mitad de frase — no respuestas simplemente cortas.
+
+    El prompt le exige a Sofía ser breve (máximo 3 oraciones), así que una respuesta
+    corta pero bien puntuada es válida. Solo se marca como incompleta si termina en
+    una palabra colgante (preposición/artículo) o, siendo muy corta, no cierra con
+    puntuación final (señal de truncamiento real).
+    """
     texto = re.sub(r"\s+", " ", respuesta or "").strip()
-    if len(texto) < 45:
+    if not texto:
         return True
     if _PATRON_RESPUESTA_INCOMPLETA.search(texto):
         return True
-    palabras = re.findall(r"\w+", texto, re.UNICODE)
-    return len(palabras) < 8
+    if len(texto) < 45 and not _PATRON_PUNTUACION_FINAL.search(texto):
+        return True
+    return False
 
 
 def _procesar_respuesta_cliente(
@@ -1956,7 +1967,22 @@ async def generar_respuesta_con_tools(
                 messages=mensajes_con_resultado,
                 tools=[_TOOL_CONFIRMAR_CITA, _TOOL_ESCALAR_ASESOR, _TOOL_CONSULTAR_ASESOR, _TOOL_NOTIFICAR_AREA, _TOOL_CALIFICAR_SIN_VISITA],
             )
-            respuesta = response2.content[0].text
+            texto_response2 = next(
+                (b.text for b in response2.content if getattr(b, "type", None) == "text"),
+                None,
+            )
+            if texto_response2:
+                respuesta = texto_response2
+            else:
+                # Claude no devolvió texto en la segunda vuelta (p.ej. intentó otra
+                # tool_use encadenada, que no soportamos). No devolvemos un error
+                # genérico: si una herramienta como confirmar_cita ya tuvo éxito,
+                # el cliente debe ver esa confirmación real en vez de un mensaje falso.
+                logger.warning(
+                    f"response2 sin bloque de texto (stop_reason={response2.stop_reason}); "
+                    "usando resultado_tool como respuesta"
+                )
+                respuesta = tool_results[-1]["content"] if tool_results else _mensaje_error()
             logger.info(
                 f"Respuesta con tool_use "
                 f"({response.usage.input_tokens}+{response2.usage.input_tokens} in / "

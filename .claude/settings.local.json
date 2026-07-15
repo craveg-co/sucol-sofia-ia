@@ -34,7 +34,9 @@
       "Bash(./venv/Scripts/python.exe -c ' *)",
       "Bash(ANTHROPIC_API_KEY=dummy ./venv/Scripts/python.exe -c ' *)",
       "Bash(./venv/Scripts/python.exe -c \"import yaml; d = yaml.safe_load\\(open\\('config/prompts.yaml', encoding='utf-8'\\)\\); print\\('OK', len\\(d['system_prompt']\\), 'chars'\\)\")",
-      "Bash(grep -E \"test_historial_descarta_negacion|FAILED|OK$|Ran \")"
+      "Bash(grep -E \"test_historial_descarta_negacion|FAILED|OK$|Ran \")",
+      "Bash(./venv/Scripts/python.exe -m pytest tests/ -q)",
+      "Bash(./venv/Scripts/python.exe -m unittest discover -s tests -p \"test_*.py\" -v)"
     ]
   }
 }
