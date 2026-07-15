@@ -865,6 +865,12 @@ _PATRON_INFO_DIGITAL_PROYECTO = re.compile(
     re.IGNORECASE,
 )
 
+_PATRON_OTRO_TEMA_COMERCIAL = re.compile(
+    r"\b(tama[ñn]os?|[aá]reas?|metraje|m2|m²|precios?|valor(?:es)?|"
+    r"cu[aá]nto\s+(?:cuesta|vale)|costo|financiaci[oó]n|cuota)\b",
+    re.IGNORECASE,
+)
+
 _BROCHURES_POR_SLUG = {
     "buenavista": "https://drive.google.com/file/d/1K-tjU8z0iJuFr-e9hCSPhcoJxcE5xmt0/view?usp=share_link",
     "vientos_de_ginebra": "https://drive.google.com/file/d/19OKqC1txQhXk3BEanYG3HjJ_LC-GUL9K/view?usp=share_link",
@@ -1269,6 +1275,12 @@ def _respuesta_recursos_proyecto(
     pide_brochure = bool(_PATRON_BROCHURE_PROYECTO.search(mensaje or ""))
     pide_info_digital = bool(_PATRON_INFO_DIGITAL_PROYECTO.search(mensaje or ""))
     if not proyecto or not (pide_imagenes or pide_ubicacion or pide_brochure or pide_info_digital):
+        return None
+
+    # Si el cliente pidió esto junto con tamaños, precios o financiación, no lo
+    # respondamos a medias: dejamos que el modelo conteste todo junto con el
+    # contexto completo del CRM en vez de contestar solo ubicación/imágenes/brochure.
+    if _PATRON_OTRO_TEMA_COMERCIAL.search(mensaje or ""):
         return None
 
     nombre = proyecto.get("nombre") or "este proyecto"
