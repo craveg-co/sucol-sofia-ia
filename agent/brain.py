@@ -660,6 +660,13 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
         "de la seccion de lotes del CRM. Si el lote o precio exacto que pide el cliente no "
         "tiene una simulacion en el contexto, di que no tienes esa cifra exacta y que la "
         "confirmas con el equipo de SUCOL — no inventes ni estimes el numero tu misma.",
+        "- TAMAÑOS Y PRECIOS GENERALES: si el cliente pregunta por tamaños o precios sin pedir "
+        "un lote exacto, y el CRM no trae lotes en tabla para este proyecto, usa los campos "
+        "'Áreas' y 'Precios' de la ficha del proyecto (ej. 'desde 168 m² hasta 607 m²', "
+        "'desde $103.000.000') — son datos oficiales de la ficha, no una invención tuya. La "
+        "regla de 'no inventar cifras' aplica a simulaciones de cuota y a precios de lotes "
+        "específicos que no aparecen en ninguna fuente, no a los rangos generales ya escritos "
+        "en la ficha del proyecto.",
         "- CIERRE FALSO: frases como 'quedo atento', 'quedo pendiente', 'estoy pendiente', "
         "'ok', 'dale' o 'listo' indican que el cliente SIGUE interesado y espera tu siguiente "
         "mensaje — NO son un cierre de conversacion. No respondas con una despedida tipo "
