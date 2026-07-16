@@ -11,6 +11,7 @@ import re
 import yaml
 import logging
 import httpx
+import holidays
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -260,6 +261,72 @@ def _fecha_colombia() -> str:
         f"{dias[ahora.weekday()]} {ahora.day} de {meses[ahora.month - 1]} de {ahora.year}, "
         f"{ahora.strftime('%I:%M %p')}"
     )
+
+
+# ── Disponibilidad de visitas presenciales por proyecto ──────────────────────
+# Grupo A (sala de ventas, Jamundí): lunes a sábado, excepto festivos.
+# Grupo B (visita en el terreno): martes a domingo, excepto festivos. Si el
+# lunes de esa semana es festivo, ese lunes se habilita y el martes se cierra
+# (el descanso semanal se corre al martes).
+_CO_FESTIVOS = holidays.country_holidays("CO")
+
+_SLUGS_GRUPO_B_VISITA = {"vientos_ginebra", "reservas_ilama"}
+
+_DIAS_SEMANA_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+_MESES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
+             "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+
+
+def _hoy_colombia():
+    """Fecha (date) actual en Colombia, UTC-5."""
+    return datetime.now(timezone(timedelta(hours=-5))).date()
+
+
+def _grupo_visita_proyecto(proyecto: dict | None) -> str:
+    """'B' para proyectos con visita en el terreno propio, 'A' para el resto (sala de ventas)."""
+    slug = str((proyecto or {}).get("slug") or "").strip().lower()
+    return "B" if slug in _SLUGS_GRUPO_B_VISITA else "A"
+
+
+def _dia_habil_visita(fecha, grupo: str) -> bool:
+    """Determina si `fecha` (date) admite visitas presenciales para el grupo dado."""
+    es_festivo = fecha in _CO_FESTIVOS
+    dow = fecha.weekday()  # 0 = lunes ... 6 = domingo
+
+    if grupo == "A":
+        if dow == 6:  # domingo, siempre cerrado
+            return False
+        return not es_festivo
+
+    # Grupo B: martes(1) a domingo(6) habitual, lunes(0) cerrado salvo festivo.
+    lunes_de_la_semana = fecha - timedelta(days=dow)
+    lunes_es_festivo = lunes_de_la_semana in _CO_FESTIVOS
+
+    if dow == 0:  # lunes
+        return es_festivo  # solo abre si ESE lunes es festivo
+    if dow == 1:  # martes
+        if lunes_es_festivo:
+            return False  # el descanso se corrió al martes
+        return not es_festivo
+    return not es_festivo  # miércoles a domingo
+
+
+def _proximos_dias_visita(proyecto: dict | None, cantidad: int = 5) -> list:
+    """Retorna las próximas `cantidad` fechas (date) hábiles para visita presencial."""
+    grupo = _grupo_visita_proyecto(proyecto)
+    fecha = _hoy_colombia() + timedelta(days=1)  # se agenda desde mañana
+    resultado = []
+    intentos = 0
+    while len(resultado) < cantidad and intentos < 30:
+        if _dia_habil_visita(fecha, grupo):
+            resultado.append(fecha)
+        fecha += timedelta(days=1)
+        intentos += 1
+    return resultado
+
+
+def _formatear_fecha_es(fecha) -> str:
+    return f"{_DIAS_SEMANA_ES[fecha.weekday()]} {fecha.day} de {_MESES_ES[fecha.month - 1]}"
 
 
 def _resolver_variables_prompt(prompt: str) -> str:
@@ -697,6 +764,18 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
             )
         if maps_url:
             lineas.append(f"- El ÚNICO enlace autorizado de ubicación es: {maps_url}.")
+
+        dias_disponibles = _proximos_dias_visita(proyecto)
+        if dias_disponibles:
+            dias_legibles = ", ".join(_formatear_fecha_es(d) for d in dias_disponibles)
+            lineas.append(
+                f"- DÍAS HÁBILES PARA VISITA PRESENCIAL de este proyecto (ya excluye domingos/"
+                f"días de descanso y festivos según la política de Sucol): {dias_legibles}. "
+                "Cuando propongas franjas, elige día y hora SOLO dentro de esta lista. Si el "
+                "cliente pide un día que no está en esta lista, dile sin dar explicaciones "
+                "internas que ese día no hay disponibilidad y ofrécele directamente el día "
+                "más cercano de la lista."
+            )
     return "\n".join(lineas)
 
 
@@ -856,7 +935,7 @@ _PATRON_UBICACION_PROYECTO = re.compile(
 )
 
 _PATRON_IMAGENES_PROYECTO = re.compile(
-    r"\b(im[aá]genes?|fotos?|galer[ií]a|ver\s+(?:el\s+)?(?:lugar|proyecto))\b",
+    r"\b(im[aá]gen(?:es)?|fotos?|galer[ií]a|ver\s+(?:el\s+)?(?:lugar|proyecto))\b",
     re.IGNORECASE,
 )
 
@@ -1306,9 +1385,13 @@ def _respuesta_recursos_proyecto(
         if urls:
             partes.append(f"Puedes ver el material oficial de {nombre} aquí: {' '.join(urls)}")
         else:
-            partes.append(
-                f"Aún no tengo una galería oficial de {nombre} registrada para enviarte por este chat."
-            )
+            brochure_url = _url_brochure_proyecto(proyecto)
+            if brochure_url:
+                partes.append(f"No tengo galería aparte, pero te comparto el brochure de {nombre}: {brochure_url}")
+            else:
+                partes.append(
+                    f"Aún no tengo una galería oficial de {nombre} registrada para enviarte por este chat."
+                )
 
     if pide_ubicacion:
         ubicacion = _ubicacion_oficial_proyecto(proyecto)

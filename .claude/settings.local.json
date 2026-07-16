@@ -37,7 +37,11 @@
       "Bash(grep -E \"test_historial_descarta_negacion|FAILED|OK$|Ran \")",
       "Bash(./venv/Scripts/python.exe -m pytest tests/ -q)",
       "Bash(./venv/Scripts/python.exe -m unittest discover -s tests -p \"test_*.py\" -v)",
-      "Bash(./venv/Scripts/python.exe -m unittest discover -s tests -p \"test_*.py\")"
+      "Bash(./venv/Scripts/python.exe -m unittest discover -s tests -p \"test_*.py\")",
+      "Bash(supabase --version)",
+      "Bash(supabase projects *)",
+      "Bash(supabase --linked db dump --data-only -t proyectos)",
+      "Bash(supabase db *)"
     ]
   }
 }

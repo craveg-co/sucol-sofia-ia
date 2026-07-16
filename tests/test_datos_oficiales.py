@@ -159,14 +159,22 @@ class DatosOficialesTest(unittest.TestCase):
         self.assertIn("Lago Calima", respuesta)
         self.assertNotIn("problema técnico", respuesta.lower())
 
-    def test_imagenes_sin_galeria_no_fuerzan_una_cita(self):
+    def test_imagenes_sin_galeria_cae_a_brochure(self):
         respuesta = _respuesta_recursos_proyecto(
             "Quiero ver imágenes del proyecto",
             {"slug": "buenavista", "nombre": "Buenavista"},
         )
 
-        self.assertIn("no tengo una galería oficial", respuesta.lower())
+        self.assertIn("brochure de Buenavista", respuesta)
         self.assertNotIn("agend", respuesta.lower())
+
+    def test_imagenes_singular_dispara_brochure(self):
+        respuesta = _respuesta_recursos_proyecto(
+            "Tienes una imagen del proyecto?",
+            {"slug": "buenavista", "nombre": "Buenavista"},
+        )
+
+        self.assertIn("brochure de Buenavista", respuesta)
 
     def test_imagenes_y_ubicacion_se_responden_juntas(self):
         respuesta = _respuesta_recursos_proyecto(
@@ -174,7 +182,7 @@ class DatosOficialesTest(unittest.TestCase):
             {"slug": "buenavista", "nombre": "Buenavista"},
         )
 
-        self.assertIn("galería oficial", respuesta)
+        self.assertIn("brochure de Buenavista", respuesta)
         self.assertIn("sur de Jamundí", respuesta)
 
     def test_brochure_buenavista_usa_link_local_autorizado(self):
