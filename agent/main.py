@@ -30,6 +30,7 @@ from agent.providers import obtener_proveedor
 from agent.crm import (
     obtener_proyecto_por_telefono,
     obtener_proyecto_desde_lead,
+    obtener_proyecto_por_slug,
     obtener_contacto_whatsapp,
     detectar_proyecto_en_mensaje,
     obtener_lead,
@@ -239,6 +240,68 @@ def _bloquea_segundo_contacto_por_contacto_activo(contacto: dict | None, proyect
     return bool(proyecto_activo and proyecto_slug and proyecto_activo != proyecto_slug)
 
 
+# ── Desambiguación de proyecto cuando un mismo telefono llega con un lead nuevo
+# para OTRO proyecto mientras ya hay una conversación activa (frecuente con leads
+# duplicados de Facebook Ads). En vez de bloquear en silencio o cambiar de proyecto
+# sin avisar, se deja una marca y se le pregunta al cliente en su próximo mensaje.
+_MARCA_PROYECTO_PENDIENTE = "PENDIENTE_PROYECTO:"
+
+
+async def _marcar_proyecto_pendiente(telefono: str, proyecto_slug: str) -> None:
+    try:
+        await crear_o_actualizar_contacto_whatsapp(
+            telefono,
+            {"notas_sofia": f"{_MARCA_PROYECTO_PENDIENTE}{proyecto_slug}"},
+        )
+    except Exception as e:
+        logger.warning(f"No se pudo marcar proyecto pendiente para {telefono}: {e}")
+
+
+async def _resolver_proyecto_pendiente(telefono: str, mensaje: str) -> str | None:
+    """
+    Si hay un proyecto alterno pendiente de confirmar para este telefono, intenta
+    resolverlo con el mensaje actual del cliente.
+
+    Retorna el texto de la pregunta de desambiguación si todavía no se resolvió
+    (el caller debe responder eso y NO continuar con el flujo normal de Sofía).
+    Retorna None si no había nada pendiente, o si ya se resolvió (limpia la marca
+    y deja que el flujo normal continúe con el proyecto que el cliente eligió).
+    """
+    contacto = await obtener_contacto_whatsapp(telefono)
+    nota = str((contacto or {}).get("notas_sofia") or "")
+    if not nota.startswith(_MARCA_PROYECTO_PENDIENTE):
+        return None
+
+    slug_pendiente = nota[len(_MARCA_PROYECTO_PENDIENTE):].strip()
+    slug_activo = str((contacto or {}).get("proyecto_slug") or "").strip()
+
+    mencion = None
+    if mensaje and mensaje.strip():
+        try:
+            mencion = await detectar_proyecto_en_mensaje(mensaje)
+        except Exception as e:
+            logger.error(f"Error resolviendo proyecto pendiente para {telefono}: {e}")
+
+    if mencion and mencion.get("slug") in (slug_pendiente, slug_activo):
+        # El cliente ya eligió explícitamente uno de los dos — _detectar_proyecto
+        # ya actualizó contactos_whatsapp.proyecto_slug si aplica. Solo limpiamos la marca.
+        try:
+            await crear_o_actualizar_contacto_whatsapp(telefono, {"notas_sofia": None})
+        except Exception as e:
+            logger.warning(f"No se pudo limpiar marca de proyecto pendiente para {telefono}: {e}")
+        return None
+
+    proyecto_activo = await obtener_proyecto_por_slug(slug_activo) if slug_activo else None
+    proyecto_alterno = await obtener_proyecto_por_slug(slug_pendiente) if slug_pendiente else None
+    nombre_activo = (proyecto_activo or {}).get("nombre") or "el proyecto de este chat"
+    nombre_alterno = (proyecto_alterno or {}).get("nombre") or "el otro proyecto"
+
+    return (
+        f"Antes de seguir: veo que también mostraste interés en {nombre_alterno}. "
+        f"¿Sobre cuál proyecto te gustaría que te ayude — {nombre_activo} o {nombre_alterno}?"
+    )
+
+
 def _ya_procesado(mensaje_id: str) -> bool:
     """True si este mensaje_id ya fue procesado en los últimos 5 minutos. Registra si es nuevo."""
     if not mensaje_id:
@@ -390,14 +453,18 @@ async def iniciar_conversacion(payload: LeadIdPayload):
     contacto_activo = await obtener_contacto_whatsapp(tel_norm)
     if _bloquea_primer_contacto_por_contacto_activo(contacto_activo, proyecto_slug):
         logger.warning(
-            "Primer contacto bloqueado para %s: proyecto activo=%s, lead=%s",
+            "Primer contacto en espera de desambiguación para %s: proyecto activo=%s, lead nuevo=%s",
             tel_norm,
             contacto_activo.get("proyecto_slug"),
             proyecto_slug,
         )
+        # No se envía una segunda plantilla (evita un saludo duplicado/confuso).
+        # Se deja marcado el proyecto nuevo para preguntarle al cliente cuál
+        # prefiere en cuanto vuelva a escribir (ver _resolver_proyecto_pendiente).
+        await _marcar_proyecto_pendiente(tel_norm, proyecto_slug)
         return {
             "status": "skipped",
-            "reason": "telefono_con_proyecto_activo_distinto",
+            "reason": "proyecto_pendiente_de_confirmar_con_cliente",
             "telefono": tel_norm,
             "proyecto_activo": contacto_activo.get("proyecto_slug"),
             "proyecto_lead": proyecto_slug,
@@ -467,14 +534,15 @@ async def enviar_segundo_contacto(payload: LeadIdPayload):
     contacto_activo = await obtener_contacto_whatsapp(tel_norm)
     if _bloquea_segundo_contacto_por_contacto_activo(contacto_activo, proyecto_slug):
         logger.warning(
-            "Segundo contacto bloqueado para %s: proyecto activo=%s, lead=%s",
+            "Segundo contacto en espera de desambiguación para %s: proyecto activo=%s, lead nuevo=%s",
             tel_norm,
             contacto_activo.get("proyecto_slug"),
             proyecto_slug,
         )
+        await _marcar_proyecto_pendiente(tel_norm, proyecto_slug)
         return {
             "status": "skipped",
-            "reason": "telefono_con_proyecto_activo_distinto",
+            "reason": "proyecto_pendiente_de_confirmar_con_cliente",
             "telefono": tel_norm,
             "proyecto_activo": contacto_activo.get("proyecto_slug"),
             "proyecto_lead": proyecto_slug,
@@ -624,6 +692,23 @@ async def webhook_handler(request: Request):
                 parte for parte in (msg.texto, msg.referencia) if parte
             )
             proyecto = await _detectar_proyecto(telefono, texto_deteccion)
+
+            # ── Si hay un proyecto alterno pendiente de confirmar (lead nuevo para
+            # otro proyecto mientras había una conversación activa), preguntar en
+            # vez de continuar con el proyecto anterior sin avisar.
+            pregunta_pendiente = await _resolver_proyecto_pendiente(telefono, texto_deteccion)
+            if pregunta_pendiente:
+                try:
+                    await guardar_mensaje(telefono, "user", msg.texto)
+                    await guardar_mensaje(telefono, "assistant", pregunta_pendiente)
+                except Exception as e:
+                    logger.error(f"Error guardando memoria (desambiguación) para {telefono}: {e}")
+                try:
+                    await proveedor.enviar_mensaje(msg.telefono, pregunta_pendiente)
+                except Exception as e:
+                    logger.error(f"Error enviando pregunta de desambiguación a {telefono}: {e}")
+                logger.info(f"Desambiguación de proyecto pendiente enviada a {telefono}")
+                continue
 
             # ── Paso 4: lotes del proyecto (requiere saber el proyecto)
             proyecto_slug = proyecto.get("slug") if proyecto else None

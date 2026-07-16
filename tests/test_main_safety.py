@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+from unittest.mock import patch, AsyncMock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -8,6 +9,7 @@ from agent.main import (
     _bloquea_primer_contacto_por_contacto_activo,
     _bloquea_segundo_contacto_por_contacto_activo,
     _es_mensaje_formulario_meta,
+    _resolver_proyecto_pendiente,
 )
 
 
@@ -59,6 +61,42 @@ class TestMainSafety(unittest.TestCase):
         self.assertTrue(
             _bloquea_segundo_contacto_por_contacto_activo(contacto, "buenavista")
         )
+
+
+class TestResolverProyectoPendiente(unittest.IsolatedAsyncioTestCase):
+    """Caso Andrés De La Espriella: lead nuevo para otro proyecto mientras ya
+    había una conversación activa. Sofía debe preguntar, no cambiar en silencio
+    ni quedarse pegada al proyecto viejo."""
+
+    async def test_sin_marca_pendiente_no_hace_nada(self):
+        with patch("agent.main.obtener_contacto_whatsapp", AsyncMock(return_value={"proyecto_slug": "vientos_ginebra"})):
+            resultado = await _resolver_proyecto_pendiente("+573155620559", "hola")
+        self.assertIsNone(resultado)
+
+    async def test_mensaje_ambiguo_pregunta_por_los_dos_proyectos(self):
+        contacto = {"proyecto_slug": "vientos_ginebra", "notas_sofia": "PENDIENTE_PROYECTO:reservas_ilama"}
+        with patch("agent.main.obtener_contacto_whatsapp", AsyncMock(return_value=contacto)), \
+             patch("agent.main.detectar_proyecto_en_mensaje", AsyncMock(return_value=None)), \
+             patch("agent.main.obtener_proyecto_por_slug", AsyncMock(side_effect=lambda slug: {
+                 "vientos_ginebra": {"slug": "vientos_ginebra", "nombre": "Vientos de Ginebra"},
+                 "reservas_ilama": {"slug": "reservas_ilama", "nombre": "Reservas de Ilama"},
+             }.get(slug))):
+            pregunta = await _resolver_proyecto_pendiente("+573155620559", "Sí, cuéntame más")
+
+        self.assertIsNotNone(pregunta)
+        self.assertIn("Vientos de Ginebra", pregunta)
+        self.assertIn("Reservas de Ilama", pregunta)
+
+    async def test_cliente_elige_proyecto_limpia_la_marca(self):
+        contacto = {"proyecto_slug": "vientos_ginebra", "notas_sofia": "PENDIENTE_PROYECTO:reservas_ilama"}
+        mock_limpiar = AsyncMock()
+        with patch("agent.main.obtener_contacto_whatsapp", AsyncMock(return_value=contacto)), \
+             patch("agent.main.detectar_proyecto_en_mensaje", AsyncMock(return_value={"slug": "reservas_ilama"})), \
+             patch("agent.main.crear_o_actualizar_contacto_whatsapp", mock_limpiar):
+            resultado = await _resolver_proyecto_pendiente("+573155620559", "Reservas de Ilama por favor")
+
+        self.assertIsNone(resultado)
+        mock_limpiar.assert_awaited_once_with("+573155620559", {"notas_sofia": None})
 
 
 if __name__ == "__main__":
