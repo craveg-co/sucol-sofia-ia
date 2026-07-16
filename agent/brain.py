@@ -743,6 +743,12 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
         "'sii', 'dale', 'listo') pero no dio dia ni hora, no repitas la misma pregunta abierta "
         "una segunda vez. Propon 2 franjas concretas de dia y hora dentro del horario de "
         "asesores para que el cliente solo tenga que elegir una.",
+        "- LENGUAJE DE CONFIRMACION: nunca digas 'listo', 'agendado', 'quedó registrado' ni "
+        "nada que suene a que la cita YA está guardada mientras todavía te falte un dato "
+        "(nombre completo, dia u hora) o no hayas llamado la herramienta confirmar_cita. "
+        "Mientras falte info usa lenguaje condicional: 'Perfecto, para confirmar tu visita "
+        "del [dia] a las [hora] necesito tu nombre completo'. Solo usa 'listo'/'agendado' "
+        "DESPUES de que confirmar_cita se haya ejecutado.",
         "- La fecha de hoy es: " + _fecha_colombia(),
         "- Usa esa fecha exacta siempre que necesites referenciar el día de hoy.",
     ]
@@ -920,14 +926,17 @@ def _validar_respuesta_oficial(
 
 _PATRON_PREGUNTA_VISITA = re.compile(
     r"\b(direcci[oó]n\s+(?:para|de)\s+(?:la\s+)?visita|c[oó]mo\s+llegar\s+(?:a\s+)?(?:la\s+)?visita|"
-    r"c[oó]mo\s+voy|para\s+una\s+visita|ir\s+a\s+ver|visitar|visita\s+presencial)\b",
+    r"c[oó]mo\s+voy|para\s+una\s+visita|ir\s+a\s+ver|visitar|visita\s+presencial|"
+    r"direcci[oó]n\s+de\s+atenci[oó]n|"
+    r"(?:me\s+(?:das|puedes\s+dar|compartes|env[ií]as|mandas|pasas)|cu[aá]l\s+es|"
+    r"env[ií]ame|m[aá]ndame|pas[aá]me)\s+la\s+direcci[oó]n\b)\b",
     re.IGNORECASE,
 )
 
 _PATRON_UBICACION_PROYECTO = re.compile(
-    r"\b(?:en\s+)?d[oó]nde\s+(?:queda|est[aá]|est[aá]n|estan|ubicad[oa]s?)\b|"
+    r"\b(?:en\s+)?d[oó]nde\s+(?:se\s+)?(?:queda|est[aá]|est[aá]n|estan|encuentra|encuentran|ubica|ubican)\b|"
     r"\bubicaci[oó]n(?:\s+exacta)?\b|"
-    r"\bdirecci[oó]n\s+del\s+proyecto\b|"
+    r"\bdirecci[oó]n\s+del\s+(?:proyecto|lote|terreno)\b|"
     r"\blugar\s+exacto\b|"
     r"\best[aá]n\s+ubicad[oa]s?\b|"
     r"\bestan\s+ubicad[oa]s?\b",
@@ -1213,6 +1222,7 @@ def _procesar_respuesta_cliente(
     lotes: list[dict],
     asesor: dict | None,
     historial: list[dict] | None = None,
+    resultado_cita_confirmada: str | None = None,
 ) -> str:
     if _menciona_proyecto_distinto(respuesta, proyecto):
         nombre = (proyecto or {}).get("nombre") or "el proyecto registrado"
@@ -1236,10 +1246,15 @@ def _procesar_respuesta_cliente(
         return respuesta
 
     logger.error(f"Respuesta incompleta reemplazada: {respuesta!r}")
+    if resultado_cita_confirmada:
+        # La cita ya se guardó exitosamente en este turno (tool confirmar_cita).
+        # Nunca reemplaces esa confirmación real por un mensaje que sugiera
+        # que falta información — el cliente vería un dato falso.
+        return resultado_cita_confirmada
     if _en_medio_de_agendamiento(historial):
         return (
-            "Disculpa, no me quedó claro. ¿Me confirmas el día y la hora "
-            "exactos que prefieres para tu visita?"
+            "Disculpa, se me cortó la respuesta. ¿Me confirmas de nuevo el día, "
+            "la hora y tu nombre completo para la visita?"
         )
     return _respuesta_resumen_crm(proyecto, lotes)
 
@@ -2008,6 +2023,7 @@ async def generar_respuesta_con_tools(
             tools=[_TOOL_CONFIRMAR_CITA, _TOOL_ESCALAR_ASESOR, _TOOL_CONSULTAR_ASESOR, _TOOL_NOTIFICAR_AREA, _TOOL_CALIFICAR_SIN_VISITA],
         )
 
+        resultado_cita_confirmada = None
         if response.stop_reason == "tool_use":
             tool_uses = [b for b in response.content if b.type == "tool_use"]
             tool_results = []
@@ -2021,6 +2037,8 @@ async def generar_respuesta_con_tools(
                             proyecto,
                         )
                         resultado_tool = await confirmar_cita(telefono=telefono, **datos_cita)
+                        if resultado_tool.startswith("Cita agendada"):
+                            resultado_cita_confirmada = resultado_tool
                     except Exception as e:
                         logger.error(f"Error ejecutando confirmar_cita: {e}")
                         resultado_tool = "Hubo un problema al agendar la cita. Por favor intenta de nuevo."
@@ -2101,6 +2119,7 @@ async def generar_respuesta_con_tools(
             lotes_disponibles or [],
             asesor,
             historial,
+            resultado_cita_confirmada,
         )
 
     except Exception:
