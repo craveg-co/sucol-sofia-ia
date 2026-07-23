@@ -432,6 +432,9 @@ _FINANCIACION_PROYECTOS = {
     "reservas_ilama": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.15, "cuota_inicial_meses": 6, "saldo_meses": 24},
     "maloka_mallki": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.15, "cuota_inicial_meses": 2, "saldo_meses": 18},
     "cascata": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.10, "cuota_inicial_meses": 2, "saldo_meses": 36},
+    # 5% sep + 20% CI al mes siguiente (pago único) + 75% a 36 meses directo con la
+    # promotora (Promotora Vientos de Ginebra S.A.S.) — NO es SERCAPITAL.
+    "vientos_ginebra": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.20, "cuota_inicial_meses": 1, "saldo_meses": 36},
 }
 
 

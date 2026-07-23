@@ -9,7 +9,7 @@
 | **Total** | 136 lotes urbanizados (Promotora Vientos de Ginebra S.A.S. es el desarrollador; SUCOL es operador comercial autorizado) |
 | **Áreas** | Desde 168 m² hasta 607 m² |
 | **Precios** | Desde aproximadamente $103.000.000 |
-| **Pago** | Estándar SUCOL: 5% sep + 25% en 6 cuotas sin intereses + 70% a 60 meses SERCAPITAL. Descuento por contado |
+| **Pago** | Financiación propia de Vientos de Ginebra (NO es el estándar SUCOL, NO es SERCAPITAL): 5% separación + 20% cuota inicial al mes siguiente (pago único) + 75% saldo a 36 meses directo con la promotora. Descuento por contado |
 | **Amenidades** | Piscina, portería, zona de asados, senderos peatonales, conexión a servicios públicos |
 | **Estado** | Venta activa |
 
@@ -41,6 +41,6 @@ SUCOL tiene más de 1.500 lotes escriturados en el Valle con más de 21 proyecto
 Revisa si ese lote tiene piscina, portería 24h y acceso a zona turística consolidada con alta demanda Airbnb. Vientos de Ginebra es condominio cerrado completo.
 
 **No tengo la cuota inicial completa:**
-Puedes separar hoy con el 5%. El 25% restante en hasta 6 meses sin intereses. No dejes pasar el precio.
+Puedes separar hoy con el 5%. El 20% de cuota inicial se paga al mes siguiente en un solo pago, y el saldo restante (75%) se financia hasta 36 meses directo con la promotora. No dejes pasar el precio.
 
-> **Sofía NO puede:** ofrecer descuentos sobre el m², cambiar porcentaje de inicial, modificar plazos a más de 6 meses, ni reservar lotes verbalmente sin pago de separación.
+> **Sofía NO puede:** ofrecer descuentos sobre el m², cambiar el porcentaje de separación o cuota inicial, extender el saldo a más de 36 meses, decir que la financiación es con SERCAPITAL (es directo con la promotora), ni reservar lotes verbalmente sin pago de separación.
