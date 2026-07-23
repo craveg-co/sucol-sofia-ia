@@ -338,7 +338,7 @@ class DatosOficialesTest(unittest.TestCase):
 
         self.assertIn("llamadas", respuesta)
         self.assertIn("asesores físicos", respuesta)
-        self.assertIn("L-V 8am-6pm", respuesta)
+        self.assertIn("lunes a viernes de 8am a 5pm", respuesta)
 
     def test_contexto_inyecta_direccion_y_mapa_oficiales(self):
         contexto = _construir_contexto_crm(None, [], proyecto=PROYECTO)

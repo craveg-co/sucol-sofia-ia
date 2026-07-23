@@ -12,7 +12,7 @@ import yaml
 import logging
 import httpx
 import holidays
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 from pathlib import Path
 from types import SimpleNamespace
 from dotenv import load_dotenv
@@ -311,6 +311,37 @@ def _dia_habil_visita(fecha, grupo: str) -> bool:
     return not es_festivo  # miércoles a domingo
 
 
+# Horas reales de atención de asesores (24h), por día de la semana.
+# Grupo A (Jamundí, sala de ventas): lunes a viernes 8am-5pm, sábado 8am-12pm, domingo cerrado.
+# Grupo B (Vientos de Ginebra, Reservas de Ilama): martes a viernes 8am-5pm, sábado y domingo 8am-1pm.
+_HORAS_GRUPO_A = {0: (8, 17), 1: (8, 17), 2: (8, 17), 3: (8, 17), 4: (8, 17), 5: (8, 12)}
+_HORAS_GRUPO_B = {1: (8, 17), 2: (8, 17), 3: (8, 17), 4: (8, 17), 5: (8, 13), 6: (8, 13)}
+
+
+def _horario_dia(fecha, grupo: str) -> tuple[int, int] | None:
+    """Rango de horas (inicio, fin) en 24h en que el asesor atiende `fecha`, o None si no atiende."""
+    if not _dia_habil_visita(fecha, grupo):
+        return None
+    dow = fecha.weekday()
+    if grupo == "A":
+        return _HORAS_GRUPO_A.get(dow)
+    if dow == 0:
+        # Grupo B: el lunes solo abre cuando ESE lunes es festivo (descanso corrido a martes),
+        # y en ese caso opera con el horario normal de entre semana.
+        return _HORAS_GRUPO_A[0]
+    return _HORAS_GRUPO_B.get(dow)
+
+
+def _formatear_hora_legible(hora24: int) -> str:
+    if hora24 == 0:
+        return "12am"
+    if hora24 == 12:
+        return "12pm"
+    if hora24 < 12:
+        return f"{hora24}am"
+    return f"{hora24 - 12}pm"
+
+
 def _proximos_dias_visita(proyecto: dict | None, cantidad: int = 5) -> list:
     """Retorna las próximas `cantidad` fechas (date) hábiles para visita presencial."""
     grupo = _grupo_visita_proyecto(proyecto)
@@ -327,6 +358,45 @@ def _proximos_dias_visita(proyecto: dict | None, cantidad: int = 5) -> list:
 
 def _formatear_fecha_es(fecha) -> str:
     return f"{_DIAS_SEMANA_ES[fecha.weekday()]} {fecha.day} de {_MESES_ES[fecha.month - 1]}"
+
+
+def _validar_slot_cita(fecha_cita: str, hora_cita: str, proyecto: dict | None) -> str | None:
+    """
+    Valida fecha y hora de una cita contra el horario real de asesores del proyecto
+    (día de la semana + rango de horas, festivos y descansos ya considerados).
+
+    Retorna None si el slot es válido, o un mensaje con alternativas reales si no lo es.
+    Esto evita que el modelo agende una fecha pasada o una hora fuera de horario.
+    """
+    try:
+        fecha = date.fromisoformat(str(fecha_cita))
+        hora = int(str(hora_cita).split(":")[0])
+    except (ValueError, IndexError, TypeError):
+        return (
+            "No logré interpretar esa fecha o esa hora. ¿Me confirmas el día y la hora "
+            "exacta, por ejemplo 'sábado 25 de julio a las 10am'?"
+        )
+
+    hoy = _hoy_colombia()
+    grupo = _grupo_visita_proyecto(proyecto)
+    rango = _horario_dia(fecha, grupo) if fecha > hoy else None
+
+    if rango and rango[0] <= hora < rango[1]:
+        return None
+
+    alternativas = _proximos_dias_visita(proyecto, 3)
+    opciones = []
+    for d in alternativas:
+        r = _horario_dia(d, grupo)
+        if r:
+            opciones.append(
+                f"{_formatear_fecha_es(d)} entre {_formatear_hora_legible(r[0])} "
+                f"y {_formatear_hora_legible(r[1])}"
+            )
+    texto_opciones = "; ".join(opciones) if opciones else "los próximos días hábiles del asesor"
+
+    motivo = "esa fecha ya pasó" if fecha <= hoy else "el asesor no atiende en ese horario"
+    return f"Esa fecha u hora no está disponible porque {motivo}. Opciones reales: {texto_opciones}."
 
 
 def _resolver_variables_prompt(prompt: str) -> str:
@@ -743,6 +813,13 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
         "'sii', 'dale', 'listo') pero no dio dia ni hora, no repitas la misma pregunta abierta "
         "una segunda vez. Propon 2 franjas concretas de dia y hora dentro del horario de "
         "asesores para que el cliente solo tenga que elegir una.",
+        "- CIERRE DE AGENDAMIENTO: si ya tienes en la conversacion el nombre completo, "
+        "telefono, dia y hora del cliente para una cita, llama la herramienta confirmar_cita "
+        "en este mismo turno. No vuelvas a preguntar por datos que el cliente ya te dio antes "
+        "en el historial.",
+        "- TELEFONO DISTINTO: si el numero que el cliente te da ahora es diferente al que dio "
+        "antes en esta misma conversacion, preguntale cual es el correcto antes de llamar "
+        "confirmar_cita.",
         "- LENGUAJE DE CONFIRMACION: nunca digas 'listo', 'agendado', 'quedó registrado' ni "
         "nada que suene a que la cita YA está guardada mientras todavía te falte un dato "
         "(nombre completo, dia u hora) o no hayas llamado la herramienta confirmar_cita. "
@@ -771,16 +848,26 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
         if maps_url:
             lineas.append(f"- El ÚNICO enlace autorizado de ubicación es: {maps_url}.")
 
+        grupo_horario = _grupo_visita_proyecto(proyecto)
         dias_disponibles = _proximos_dias_visita(proyecto)
         if dias_disponibles:
-            dias_legibles = ", ".join(_formatear_fecha_es(d) for d in dias_disponibles)
+            partes_dias = []
+            for d in dias_disponibles:
+                rango = _horario_dia(d, grupo_horario)
+                if rango:
+                    partes_dias.append(
+                        f"{_formatear_fecha_es(d)} de {_formatear_hora_legible(rango[0])} "
+                        f"a {_formatear_hora_legible(rango[1])}"
+                    )
+            dias_legibles = "; ".join(partes_dias)
             lineas.append(
-                f"- DÍAS HÁBILES PARA VISITA PRESENCIAL de este proyecto (ya excluye domingos/"
-                f"días de descanso y festivos según la política de Sucol): {dias_legibles}. "
-                "Cuando propongas franjas, elige día y hora SOLO dentro de esta lista. Si el "
-                "cliente pide un día que no está en esta lista, dile sin dar explicaciones "
-                "internas que ese día no hay disponibilidad y ofrécele directamente el día "
-                "más cercano de la lista."
+                f"- DÍAS Y HORARIOS REALES del asesor para cita, llamada o visita de este "
+                f"proyecto (ya excluye festivos y descansos según la política de Sucol): "
+                f"{dias_legibles}. SOLO puedes proponer o aceptar día y hora dentro de estos "
+                "rangos exactos — nunca fuera de esas horas ni en una fecha que ya pasó. Si el "
+                "cliente pide un día u hora que no está en este rango, dile sin dar "
+                "explicaciones internas que ahí no hay disponibilidad y ofrécele directamente "
+                "la opción válida más cercana de esta lista."
             )
     return "\n".join(lineas)
 
@@ -1039,23 +1126,35 @@ _PATRON_FUERA_HORARIO_SOFIA = re.compile(
 )
 
 
-def _corregir_fuera_horario_sofia(respuesta: str, mensaje_cliente: str) -> str:
+def _horario_legible_proyecto(proyecto: dict | None) -> str:
+    """Descripción legible del horario real de asesores para este proyecto."""
+    if _grupo_visita_proyecto(proyecto) == "B":
+        return "martes a viernes de 8am a 5pm, y sábados y domingos de 8am a 1pm"
+    return "lunes a viernes de 8am a 5pm, y sábados de 8am a 12pm (domingos no hay atención)"
+
+
+def _corregir_fuera_horario_sofia(
+    respuesta: str,
+    mensaje_cliente: str,
+    proyecto: dict | None = None,
+) -> str:
     """Sofia atiende siempre; el horario solo aplica a asesores fisicos."""
     if not _PATRON_FUERA_HORARIO_SOFIA.search(respuesta or ""):
         return respuesta
 
     logger.error("Respuesta corregida: Sofía no debe decir que está fuera de horario")
+    horario = _horario_legible_proyecto(proyecto)
     if _PATRON_SOLICITUD_ASESOR.search(mensaje_cliente or "") or _PATRON_INTENCION_CITA.search(mensaje_cliente or ""):
         return (
             "Sofía puede ayudarte por WhatsApp en este momento. "
-            "Las llamadas, visitas y atención con asesores físicos se programan en horario de asesores: "
-            "L-V 8am-6pm, Sáb 8am-5pm y Dom 8am-4pm. ¿Quieres que dejemos una llamada programada?"
+            f"Las llamadas, visitas y atención con asesores físicos se programan en horario de "
+            f"asesores: {horario}. ¿Quieres que dejemos una llamada programada?"
         )
 
     return (
         "Sofía puede ayudarte por WhatsApp en este momento. "
-        "El horario aplica solo para llamadas, visitas o atención con asesores físicos. "
-        "¿Qué información necesitas?"
+        f"El horario aplica solo para llamadas, visitas o atención con asesores físicos: "
+        f"{horario}. ¿Qué información necesitas?"
     )
 
 
@@ -1177,8 +1276,9 @@ def _respuesta_solicitud_info_proyecto(
 
 
 _PATRON_PREGUNTA_AGENDAMIENTO = re.compile(
-    r"(d[ií]a y hora|hora exacta|qu[eé] d[ií]a|\d{1,2}\s*(?:am|pm)|te sirve|"
-    r"prefieres.*hora|agendar|confirmar tu visita|confirmar la cita)",
+    r"(d[ií]a y (?:la )?hora|hora exacta|qu[eé] d[ií]a|\d{1,2}\s*(?:am|pm)|te sirve|"
+    r"prefieres.*hora|agendar|confirmar (?:tu|la) (?:visita|cita|llamada)|"
+    r"nombre (?:completo )?y tel[eé]fono|nombre y (?:tu )?n[uú]mero)",
     re.IGNORECASE,
 )
 
@@ -1223,6 +1323,7 @@ def _procesar_respuesta_cliente(
     asesor: dict | None,
     historial: list[dict] | None = None,
     resultado_cita_confirmada: str | None = None,
+    ultimo_resultado_tool: str | None = None,
 ) -> str:
     if _menciona_proyecto_distinto(respuesta, proyecto):
         nombre = (proyecto or {}).get("nombre") or "el proyecto registrado"
@@ -1234,7 +1335,7 @@ def _procesar_respuesta_cliente(
             f"La información oficial que tengo asociada a este chat corresponde a {nombre}. "
             "¿Qué deseas conocer sobre este proyecto?"
         )
-    respuesta = _corregir_fuera_horario_sofia(respuesta, mensaje_cliente)
+    respuesta = _corregir_fuera_horario_sofia(respuesta, mensaje_cliente, proyecto)
     respuesta = _validar_respuesta_oficial(respuesta, proyecto)
     respuesta = _corregir_disponibilidad(respuesta, lotes, proyecto)
     respuesta = _quitar_mencion_asesor_no_solicitada(
@@ -1254,8 +1355,13 @@ def _procesar_respuesta_cliente(
     if _en_medio_de_agendamiento(historial):
         return (
             "Disculpa, se me cortó la respuesta. ¿Me confirmas de nuevo el día, "
-            "la hora y tu nombre completo para la visita?"
+            "la hora y tu nombre completo?"
         )
+    if ultimo_resultado_tool:
+        # Ya se ejecutó una herramienta en este turno (p.ej. confirmar_cita rechazando
+        # un horario inválido con alternativas reales). Usar ese resultado en vez de
+        # un resumen genérico que ignoraría todo lo que el cliente ya conversó.
+        return ultimo_resultado_tool
     return _respuesta_resumen_crm(proyecto, lotes)
 
 
@@ -2024,6 +2130,7 @@ async def generar_respuesta_con_tools(
         )
 
         resultado_cita_confirmada = None
+        ultimo_resultado_tool = None
         if response.stop_reason == "tool_use":
             tool_uses = [b for b in response.content if b.type == "tool_use"]
             tool_results = []
@@ -2032,13 +2139,21 @@ async def generar_respuesta_con_tools(
                 if tu.name == "confirmar_cita":
                     try:
                         datos_cita = dict(tu.input)
-                        datos_cita["resumen"] = _resumen_cita_oficial(
-                            datos_cita.get("tipo_cita", "cita"),
+                        correccion = _validar_slot_cita(
+                            datos_cita.get("fecha_cita", ""),
+                            datos_cita.get("hora_cita", ""),
                             proyecto,
                         )
-                        resultado_tool = await confirmar_cita(telefono=telefono, **datos_cita)
-                        if resultado_tool.startswith("Cita agendada"):
-                            resultado_cita_confirmada = resultado_tool
+                        if correccion:
+                            resultado_tool = correccion
+                        else:
+                            datos_cita["resumen"] = _resumen_cita_oficial(
+                                datos_cita.get("tipo_cita", "cita"),
+                                proyecto,
+                            )
+                            resultado_tool = await confirmar_cita(telefono=telefono, **datos_cita)
+                            if resultado_tool.startswith("Cita agendada"):
+                                resultado_cita_confirmada = resultado_tool
                     except Exception as e:
                         logger.error(f"Error ejecutando confirmar_cita: {e}")
                         resultado_tool = "Hubo un problema al agendar la cita. Por favor intenta de nuevo."
@@ -2069,6 +2184,7 @@ async def generar_respuesta_con_tools(
                 else:
                     resultado_tool = f"Herramienta {tu.name} no reconocida."
 
+                ultimo_resultado_tool = resultado_tool
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": tu.id,
@@ -2120,6 +2236,7 @@ async def generar_respuesta_con_tools(
             asesor,
             historial,
             resultado_cita_confirmada,
+            ultimo_resultado_tool,
         )
 
     except Exception:
