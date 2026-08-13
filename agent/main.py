@@ -426,7 +426,52 @@ async def debug_contexto(telefono: str):
 
 
 class LeadIdPayload(BaseModel):
-    lead_id: str
+    """Payload de los procesos proactivos de Sofía.
+
+    ``lead_id`` conserva el contrato anterior. Para que un webhook de Supabase
+    no quede acoplado al nombre de una tabla, /iniciar también admite los datos
+    del lead directamente, ya sea en la raíz, en ``lead`` o en ``record``.
+    """
+    lead_id: str | None = None
+    id: str | int | None = None
+    telefono_principal: str | None = None
+    telefono: str | None = None
+    phone: str | None = None
+    proyecto_id: str | int | None = None
+    proyecto: str | None = None
+    project_id: str | int | None = None
+    project: str | None = None
+    nombre_completo: str | None = None
+    nombre: str | None = None
+    lead: dict | None = None
+    record: dict | None = None
+    data: dict | None = None
+
+    class Config:
+        extra = "allow"
+
+    def perfil_lead(self) -> dict | None:
+        """Normaliza las variantes soportadas a los nombres que usa Sofía."""
+        anidado = self.lead or self.record or self.data or {}
+        raiz = self.model_dump(exclude_none=True)
+        fuente = {**raiz, **anidado}
+        telefono = fuente.get("telefono_principal") or fuente.get("telefono") or fuente.get("phone")
+        if not telefono:
+            return None
+        return {
+            "id": fuente.get("lead_id") or fuente.get("id"),
+            "telefono_principal": telefono,
+            "proyecto_id": fuente.get("proyecto_id") or fuente.get("project_id"),
+            "proyecto": fuente.get("proyecto") or fuente.get("project"),
+            "nombre_completo": fuente.get("nombre_completo") or fuente.get("nombre"),
+        }
+
+    def id_lead(self) -> str | None:
+        valor = self.lead_id or self.id
+        if valor is None:
+            anidado = self.lead or self.record or self.data or {}
+            valor = anidado.get("lead_id") or anidado.get("id")
+        return str(valor) if valor is not None else None
 
 
 @app.post("/iniciar")
@@ -435,9 +480,15 @@ async def iniciar_conversacion(payload: LeadIdPayload):
     Llamado desde el CRM cuando se asigna un lead a Sofía.
     Busca el teléfono del lead y dispara el primer mensaje proactivo.
     """
-    lead = await obtener_lead_por_id(payload.lead_id)
+    lead = payload.perfil_lead()
+    lead_id = payload.id_lead()
+    if not lead and lead_id:
+        lead = await obtener_lead_por_id(lead_id)
     if not lead:
-        raise HTTPException(status_code=404, detail="Lead no encontrado")
+        raise HTTPException(
+            status_code=422,
+            detail="Envía lead_id o el perfil del lead con teléfono",
+        )
 
     telefono = lead.get("telefono_principal")
     if not telefono:

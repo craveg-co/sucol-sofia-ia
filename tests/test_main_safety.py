@@ -6,11 +6,42 @@ from unittest.mock import patch, AsyncMock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agent.main import (
+    LeadIdPayload,
     _bloquea_primer_contacto_por_contacto_activo,
     _bloquea_segundo_contacto_por_contacto_activo,
     _es_mensaje_formulario_meta,
     _resolver_proyecto_pendiente,
 )
+
+
+class TestPayloadIniciar(unittest.TestCase):
+    def test_acepta_perfil_en_raiz(self):
+        payload = LeadIdPayload(
+            id="lead-123",
+            telefono="573001112233",
+            project="buenavista",
+            nombre="Ana",
+        )
+
+        self.assertEqual(payload.id_lead(), "lead-123")
+        self.assertEqual(payload.perfil_lead(), {
+            "id": "lead-123",
+            "telefono_principal": "573001112233",
+            "proyecto_id": None,
+            "proyecto": "buenavista",
+            "nombre_completo": "Ana",
+        })
+
+    def test_acepta_record_de_webhook_supabase(self):
+        payload = LeadIdPayload(record={
+            "id": "lead-456",
+            "telefono_principal": "+573004445566",
+            "proyecto_id": "proyecto-1",
+        })
+
+        self.assertEqual(payload.id_lead(), "lead-456")
+        self.assertEqual(payload.perfil_lead()["telefono_principal"], "+573004445566")
+        self.assertEqual(payload.perfil_lead()["proyecto_id"], "proyecto-1")
 
 
 class TestMainSafety(unittest.TestCase):
