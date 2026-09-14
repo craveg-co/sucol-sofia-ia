@@ -742,7 +742,7 @@ async def webhook_handler(request: Request):
             texto_deteccion = " ".join(
                 parte for parte in (msg.texto, msg.referencia) if parte
             )
-            proyecto = await _detectar_proyecto(telefono, texto_deteccion)
+            proyecto = await _detectar_proyecto(telefono, texto_deteccion, historial)
 
             # ── Si hay un proyecto alterno pendiente de confirmar (lead nuevo para
             # otro proyecto mientras había una conversación activa), preguntar en
@@ -854,7 +854,11 @@ async def _gather_uno(coro):
         return []
 
 
-async def _detectar_proyecto(telefono: str, mensaje: str) -> dict | None:
+async def _detectar_proyecto(
+    telefono: str,
+    mensaje: str,
+    historial: list[dict] | None = None,
+) -> dict | None:
     """
     Detecta el proyecto con esta prioridad:
     1. Mención explícita en el mensaje actual.
@@ -883,6 +887,25 @@ async def _detectar_proyecto(telefono: str, mensaje: str) -> dict | None:
         except Exception as e:
             logger.warning(f"No se pudo actualizar proyecto activo para {telefono}: {e}")
         return proyecto_mencionado
+
+    # Si no llegó una mención nueva y el CRM no puede mantener el contacto
+    # (por ejemplo, en una instalación local sin las tablas comerciales),
+    # recuperamos el último proyecto mencionado en la conversación. Así una
+    # respuesta breve como "llámame" conserva el contexto de "Cabuyal".
+    for item in reversed(historial or []):
+        if item.get("role") != "user":
+            continue
+        try:
+            proyecto_historial = await detectar_proyecto_en_mensaje(item.get("content", ""))
+        except Exception as e:
+            logger.error(f"Error detectando proyecto en historial: {e}")
+            continue
+        if proyecto_historial:
+            logger.info(
+                f"Proyecto recuperado del historial para {telefono}: "
+                f"{proyecto_historial.get('slug')}"
+            )
+            return proyecto_historial
 
     try:
         return await obtener_proyecto_por_telefono(telefono)

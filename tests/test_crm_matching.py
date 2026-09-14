@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agent.crm import (
     _normalizar_texto_matching,
     _proyecto_coincide_mensaje,
+    _proyectos_locales,
     _variantes_telefono,
 )
 
@@ -35,6 +36,16 @@ class CrmMatchingTest(unittest.TestCase):
 
         self.assertIn("+573164261812", variantes)
         self.assertIn("3164261812", variantes)
+
+    def test_catalogo_local_reconoce_cabuyal(self):
+        cabuyal = next(
+            proyecto for proyecto in _proyectos_locales()
+            if proyecto["slug"] == "solares_cabuyal"
+        )
+
+        self.assertTrue(
+            _proyecto_coincide_mensaje(cabuyal, _normalizar_texto_matching("Cabuyal"))
+        )
 
 
 if __name__ == "__main__":

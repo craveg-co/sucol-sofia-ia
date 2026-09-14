@@ -23,7 +23,40 @@ _ALIAS_PROYECTOS = {
         "buena vistas",
         "buenavista",
     },
+    "solares_cabuyal": {
+        "cabuyal",
+        "solares cabuyal",
+        "solares del cabuyal",
+    },
 }
+
+# Respaldo de lectura para instalaciones que aún no tienen conectada la base del
+# CRM. Las fichas locales son contenido comercial aprobado; nunca se usan para
+# inventario, precios ni datos que deban venir en tiempo real del CRM.
+_PROYECTOS_LOCALES = (
+    {"slug": "bora", "nombre": "Bora"},
+    {"slug": "buenavista", "nombre": "Buenavista"},
+    {"slug": "cascata", "nombre": "Cascata Vida Campestre"},
+    {"slug": "maloka_mallki", "nombre": "Maloka Mallki"},
+    {"slug": "praderas_guachinte", "nombre": "Praderas de Guachinte"},
+    {"slug": "reservas_ilama", "nombre": "Reservas de Ilama"},
+    {"slug": "santa_elena", "nombre": "Santa Elena"},
+    {"slug": "solares_cabuyal", "nombre": "Solares del Cabuyal"},
+    {"slug": "vientos_ginebra", "nombre": "Vientos de Ginebra"},
+)
+
+
+def _proyectos_locales() -> list[dict]:
+    """Retorna copias para no mutar el catálogo de respaldo en memoria."""
+    return [dict(proyecto) for proyecto in _PROYECTOS_LOCALES]
+
+
+def _proyecto_local_por_slug(slug: str | None) -> dict | None:
+    slug_normalizado = str(slug or "").strip().lower()
+    return next(
+        (dict(proyecto) for proyecto in _PROYECTOS_LOCALES if proyecto["slug"] == slug_normalizado),
+        None,
+    )
 
 # ── Conexión ───────────────────────────────────────────────────────────────────
 
@@ -42,7 +75,11 @@ _crm_engine = None
 _crm_session = None
 
 if _CRM_URL:
-    _crm_engine = create_async_engine(_CRM_URL, echo=False, connect_args={"ssl": _ssl_ctx})
+    # ``ssl`` es un argumento propio de asyncpg. Al pasarlo a SQLite, que se
+    # usa en desarrollo y en algunas instalaciones locales, cada consulta
+    # falla antes de poder resolver el proyecto del cliente.
+    _connect_args = {"ssl": _ssl_ctx} if _CRM_URL.startswith("postgresql+asyncpg://") else {}
+    _crm_engine = create_async_engine(_CRM_URL, echo=False, connect_args=_connect_args)
     _crm_session = async_sessionmaker(_crm_engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -55,7 +92,7 @@ def _crm_disponible() -> bool:
 async def obtener_proyecto_por_slug(slug: str) -> dict | None:
     """Lee un proyecto completo por su slug."""
     if not _crm_disponible():
-        return None
+        return _proyecto_local_por_slug(slug)
     try:
         async with _crm_session() as session:
             result = await session.execute(
@@ -63,10 +100,10 @@ async def obtener_proyecto_por_slug(slug: str) -> dict | None:
                 {"slug": slug},
             )
             row = result.mappings().first()
-            return dict(row) if row else None
+            return dict(row) if row else _proyecto_local_por_slug(slug)
     except Exception as e:
         logger.error(f"CRM obtener_proyecto_por_slug: {e}")
-        return None
+        return _proyecto_local_por_slug(slug)
 
 
 async def obtener_proyecto_desde_lead(lead: dict) -> dict | None:
@@ -212,16 +249,19 @@ async def obtener_contacto_whatsapp(telefono: str) -> dict | None:
 async def obtener_proyectos_activos() -> list[dict]:
     """Retorna slug y nombre de todos los proyectos activos."""
     if not _crm_disponible():
-        return []
+        logger.warning("CRM no configurado; usando catálogo local de proyectos")
+        return _proyectos_locales()
     try:
         async with _crm_session() as session:
             result = await session.execute(
                 text("SELECT slug, nombre FROM proyectos WHERE activo = true ORDER BY nombre")
             )
-            return [dict(row) for row in result.mappings().all()]
+            proyectos = [dict(row) for row in result.mappings().all()]
+            return proyectos or _proyectos_locales()
     except Exception as e:
         logger.error(f"CRM obtener_proyectos_activos: {e}")
-        return []
+        logger.warning("Usando catálogo local de proyectos como respaldo")
+        return _proyectos_locales()
 
 
 async def detectar_proyecto_en_mensaje(mensaje: str) -> dict | None:
