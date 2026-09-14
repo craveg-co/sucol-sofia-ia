@@ -47,6 +47,13 @@ class CrmMatchingTest(unittest.TestCase):
             _proyecto_coincide_mensaje(cabuyal, _normalizar_texto_matching("Cabuyal"))
         )
 
+    def test_reservas_ilama_coincide_con_ilama(self):
+        ilama = {"slug": "reservas_ilama", "nombre": "Reservas de Ilama"}
+
+        self.assertTrue(
+            _proyecto_coincide_mensaje(ilama, _normalizar_texto_matching("Ilama"))
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -28,6 +28,11 @@ _ALIAS_PROYECTOS = {
         "solares cabuyal",
         "solares del cabuyal",
     },
+    "reservas_ilama": {
+        "ilama",
+        "reservas ilama",
+        "reservas de ilama",
+    },
 }
 
 # Respaldo de lectura para instalaciones que aún no tienen conectada la base del
