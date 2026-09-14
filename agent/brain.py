@@ -88,7 +88,18 @@ class _AnthropicMessages:
                 headers=headers,
                 json=payload,
             )
-            response.raise_for_status()
+            if response.is_error:
+                # El cuerpo de error identifica qué parte del payload fue
+                # rechazada, sin registrar credenciales ni la conversación.
+                try:
+                    detalle = response.json().get("error", {}).get("message", "")
+                except ValueError:
+                    detalle = response.text[:500]
+                request_id = response.headers.get("request-id", "")
+                raise RuntimeError(
+                    f"Anthropic HTTP {response.status_code}: {detalle[:500]}"
+                    + (f" (request_id={request_id})" if request_id else "")
+                )
             data = response.json()
 
         usage_data = data.get("usage", {})
@@ -936,6 +947,35 @@ def _sanitizar_historial(
             continue
         limpio.append(mensaje)
     return limpio
+
+
+def _normalizar_historial_api(historial: list[dict], max_caracteres: int = 60000) -> list[dict]:
+    """Deja el historial en un formato válido y acotado para Messages API."""
+    turnos: list[dict] = []
+    for mensaje in historial:
+        role = mensaje.get("role")
+        contenido = str(mensaje.get("content") or "").strip()
+        if role not in ("user", "assistant") or not contenido:
+            continue
+        if turnos and turnos[-1]["role"] == role:
+            turnos[-1]["content"] += "\n\n" + contenido
+        else:
+            turnos.append({"role": role, "content": contenido})
+
+    # La plantilla de bienvenida de Sofía llega antes de la primera respuesta
+    # del cliente; no se debe usar como prefill de la API.
+    while turnos and turnos[0]["role"] != "user":
+        turnos.pop(0)
+
+    total = sum(len(turno["content"]) for turno in turnos)
+    while len(turnos) > 1 and total > max_caracteres:
+        eliminado = turnos.pop(0)
+        total -= len(eliminado["content"])
+        if turnos and turnos[0]["role"] == "assistant":
+            eliminado = turnos.pop(0)
+            total -= len(eliminado["content"])
+
+    return turnos
 
 
 def _normalizar_texto(texto: str) -> str:
@@ -2104,10 +2144,7 @@ async def generar_respuesta_con_tools(
     prompt_final += _reglas_finales(asesor_para_contexto, proyecto)
 
     historial_limpio = _sanitizar_historial(historial, proyecto)
-    mensajes: list = [
-        {"role": m["role"], "content": m["content"]}
-        for m in historial_limpio
-    ]
+    mensajes: list = _normalizar_historial_api(historial_limpio)
     if es_inicio:
         # Instrucción interna: Sofia genera el primer mensaje sin esperar al cliente
         mensajes.append({
@@ -2122,6 +2159,7 @@ async def generar_respuesta_con_tools(
         })
     else:
         mensajes.append({"role": "user", "content": mensaje})
+    mensajes = _normalizar_historial_api(mensajes)
 
     try:
         response = await client.messages.create(
@@ -2316,11 +2354,9 @@ async def generar_respuesta(
     prompt_final += _reglas_finales(asesor_para_contexto, proyecto)
 
     historial_limpio = _sanitizar_historial(historial, proyecto)
-    mensajes = [
-        {"role": m["role"], "content": m["content"]}
-        for m in historial_limpio
-    ]
-    mensajes.append({"role": "user", "content": mensaje})
+    mensajes = _normalizar_historial_api(historial_limpio + [
+        {"role": "user", "content": mensaje},
+    ])
 
     try:
         response = await client.messages.create(

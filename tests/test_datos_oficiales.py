@@ -7,6 +7,7 @@ from agent.brain import (
     _construir_contexto_crm,
     _mensaje_error,
     _mensaje_fallback,
+    _normalizar_historial_api,
     _procesar_respuesta_cliente,
     _quitar_mencion_asesor_no_solicitada,
     _respuesta_rango_horario,
@@ -33,6 +34,23 @@ PROYECTO = {
 
 
 class DatosOficialesTest(unittest.TestCase):
+    def test_historial_para_api_inicia_con_cliente_y_alterna_roles(self):
+        mensajes = _normalizar_historial_api([
+            {"role": "assistant", "content": "Plantilla inicial"},
+            {"role": "user", "content": "Cabuyal"},
+            {"role": "user", "content": "Quiero precios"},
+            {"role": "assistant", "content": "Claro"},
+            {"role": "assistant", "content": "Te ayudo"},
+        ])
+
+        self.assertEqual(
+            mensajes,
+            [
+                {"role": "user", "content": "Cabuyal\n\nQuiero precios"},
+                {"role": "assistant", "content": "Claro\n\nTe ayudo"},
+            ],
+        )
+
     def test_por_ahora_no_descarta_como_sin_interes_razon_13(self):
         clasificacion = clasificar_descarte_sofia("Por ahora no")
 
