@@ -820,6 +820,10 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
         "información importante por un límite fijo de oraciones. Trabaja un tema comercial "
         "por turno, termina con UNA pregunta útil para perfilar o avanzar y espera la respuesta "
         "del cliente antes de abrir otro tema.",
+        "- FORMATO WHATSAPP: usa párrafos cortos y viñetas • cuando presentes dos o más datos, "
+        "condiciones o beneficios. Usa 1 a 3 emojis útiles por mensaje, sin repetirlos ni poner "
+        "uno por cada línea. Puedes resaltar un dato clave con *negrita de WhatsApp*, pero no "
+        "conviertas todo el mensaje en negrita.",
         "- MENSAJES MÚLTIPLES: si separar ideas completas mejora la lectura, puedes usar una "
         "línea con <PAUSA> entre mensajes. Nunca la uses después de la pregunta final. Si no "
         "hace falta, responde en un solo mensaje; los textos largos se separan automáticamente.",
