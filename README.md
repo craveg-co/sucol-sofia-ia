@@ -301,7 +301,7 @@ Para los curiosos, esto es lo que se usa por debajo:
 
 | Componente | Tecnologia | Para que sirve |
 |-----------|-----------|----------------|
-| IA | Claude AI (claude-sonnet-4-6) | Genera las respuestas inteligentes |
+| IA | Claude AI (claude-sonnet-5) | Genera las respuestas inteligentes |
 | Servidor | FastAPI + Uvicorn | Recibe los webhooks de WhatsApp |
 | WhatsApp | Whapi.cloud / Meta / Twilio | Conecta con WhatsApp (tu eliges) |
 | Base de datos | SQLite (local) / PostgreSQL (prod) | Guarda historial de conversaciones |

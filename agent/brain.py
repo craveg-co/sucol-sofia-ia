@@ -20,10 +20,8 @@ from dotenv import load_dotenv
 load_dotenv()
 logger = logging.getLogger("agentkit")
 
-# claude-haiku-4-5: el modelo más económico y rápido de la familia actual
-# ($1.00 / $5.00 por millón de tokens input/output), suficiente para las
-# respuestas cortas (max_tokens=1024) de un bot de atención por WhatsApp.
-_ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5")
+# Modelo usado por Sofía para generar respuestas.
+_ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5")
 _ANTHROPIC_BASE_URL = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
 _ANTHROPIC_VERSION = "2023-06-01"
 

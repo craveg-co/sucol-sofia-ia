@@ -33,7 +33,7 @@ Cuando generes el agente, SIEMPRE usa estas tecnologías:
 |-----------|-----------|-------|
 | Runtime | Python 3.11+ | Verificar en Fase 1 |
 | Servidor | FastAPI + Uvicorn | Webhook handler genérico |
-| IA | Anthropic Claude API | Modelo: `claude-sonnet-4-6` |
+| IA | Anthropic Claude API | Modelo: `claude-sonnet-5` |
 | WhatsApp | Whapi.cloud / Meta Cloud API / Twilio | El usuario elige durante el setup |
 | Base de datos | SQLite (local) / PostgreSQL (prod) | Via SQLAlchemy |
 | Variables | python-dotenv | NUNCA hardcodear keys |
@@ -100,7 +100,7 @@ Memory (agent/memory.py) — recupera historial de esa conversación
     ↓
 Brain (agent/brain.py) — llama Claude API con: system prompt + historial + mensaje nuevo
     ↓
-Claude API (claude-sonnet-4-6) — genera respuesta inteligente
+Claude API (claude-sonnet-5) — genera respuesta inteligente
     ↓
 Tools (agent/tools.py) — si necesita hacer algo (agendar, buscar, etc.)
     ↓
@@ -805,7 +805,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> str:
 
     try:
         response = await client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-5",
             max_tokens=1024,
             system=system_prompt,
             messages=mensajes
@@ -1323,7 +1323,7 @@ Solo ejecutar si el usuario confirma que quiere hacer deploy.
 
    Lo que se construyó:
    - Servidor FastAPI con webhook de WhatsApp
-   - Cerebro con Claude AI (claude-sonnet-4-6)
+   - Cerebro con Claude AI (claude-sonnet-5)
    - Memoria de conversaciones por cliente
    - Herramientas: [LISTA DE HERRAMIENTAS]
    - System prompt personalizado para tu negocio
