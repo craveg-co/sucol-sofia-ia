@@ -6,6 +6,7 @@ from agent.brain import (
     _cargar_knowledge,
     _corregir_disponibilidad,
     _construir_contexto_crm,
+    _estructura_financiacion,
     _extraer_texto_respuesta,
     _mensaje_error,
     _mensaje_fallback,
@@ -37,6 +38,25 @@ PROYECTO = {
 
 
 class DatosOficialesTest(unittest.TestCase):
+    def test_buenavista_usa_estructura_de_pago_exclusiva(self):
+        estructura = _estructura_financiacion({"slug": "buenavista"})
+
+        self.assertEqual(estructura["separacion_pct"], 0.05)
+        self.assertEqual(estructura["cuota_inicial_pct"], 0.15)
+        self.assertEqual(estructura["cuota_inicial_meses"], 6)
+        self.assertEqual(estructura["saldo_meses"], 84)
+
+    def test_buenavista_no_inyecta_simulacion_de_sercapital(self):
+        contexto = _construir_contexto_crm(
+            None,
+            [{"area_m2": 500, "precio_total": 79_500_000}],
+            proyecto={"slug": "buenavista", "nombre": "Buenavista"},
+        )
+
+        self.assertIn("Precio CRM: $79,500,000", contexto)
+        self.assertNotIn("Simulación estándar", contexto)
+        self.assertNotIn("saldo ≈", contexto)
+
     def test_extrae_texto_aunque_haya_bloques_auxiliares_antes(self):
         respuesta = _extraer_texto_respuesta([
             SimpleNamespace(type="thinking"),

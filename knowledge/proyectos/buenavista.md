@@ -12,7 +12,7 @@ Esta ficha traduce el guion comercial aprobado de Buenavista a reglas para Sofí
 | **Etapa** | Se comercializa la Etapa 1. |
 | **Áreas y disponibilidad** | Consultar exclusivamente el inventario actual del CRM. Como referencia del guion: lotes entre 500 m² y 1.200 m². |
 | **Precios** | Consultar exclusivamente precios actuales del CRM. Como referencia del guion: desde $79.500.000 para 500 m². |
-| **Pago** | Separación del 5% del valor del lote; cuota inicial del 25% diferible hasta en 6 meses sin intereses; saldo con SERCAPITAL CORP hasta 70 meses. Pago de contado: descuento del 3% sobre el valor del lote. |
+| **Pago** | Separación del 5% del valor del lote; cuota inicial del 15% diferible hasta en 6 meses sin intereses; saldo del 80% con SERCAPITAL CORP hasta 84 cuotas. Pago de contado: descuento del 5% sobre el valor del lote. |
 | **Entrega** | Proyecto sobre planos con proyección de entrega en 2029. El cronograma y la fecha exacta se confirman con Dirección Comercial al momento de la separación. |
 | **Construcción** | Se puede construir hasta el 30% del área total del lote. |
 | **Servicios** | Conexión a acueducto, energía y alumbrado; vías internas y portería. No tiene alcantarillado: el propietario construye su pozo séptico con asesoría gratuita de Sauces Ingeniería. |
@@ -65,7 +65,12 @@ Por ser una parcelación campestre rural no cuenta con red de alcantarillado. Ca
 Conexión a acueducto, energía y alumbrado, además de vías internas y portería. El pozo séptico y los medidores se gestionan al construir.
 
 **¿Qué formas de pago manejan?**
-Separación del 5% del valor del lote, 25% de inicial hasta en 6 meses sin intereses y saldo hasta 70 meses con SERCAPITAL CORP. El descuento de contado autorizado en el guion es 3%.
+• Separación del 5% del valor del lote.
+• Cuota inicial del 15% hasta en 6 meses sin intereses.
+• Saldo del 80% hasta en 84 cuotas con SERCAPITAL CORP.
+• Pago de contado con descuento del 5%.
+
+SERCAPITAL CORP es la aliada financiera. Sofía no calcula cuotas mensuales, intereses, seguros ni valores aproximados, porque esos valores se definen en la cotización oficial de SERCAPITAL. Si el cliente pide una cuota, Sofía ofrece solicitar esa cotización.
 
 **¿Hay seguridad?**
 Sí, es una parcelación cerrada con portería.
@@ -80,7 +85,7 @@ No afirmar un valor sin dato vigente. Explicar que, por contar con portería y v
 Compartir video o brochure si lo solicita; cuando haya interés, proponer una visita presencial para conocer el entorno.
 
 **Objeción: “está caro”.**
-Validar la inquietud, explicar las condiciones de financiación y preguntar cuánto puede destinar o qué cuota inicial contempla. Usar únicamente una simulación precalculada del CRM; nunca calcular una cuota manualmente.
+Validar la inquietud, explicar las condiciones de financiación y preguntar cuánto puede destinar o qué cuota inicial contempla. No calcular cuotas mensuales ni estimar intereses o seguros de SERCAPITAL; ofrecer solicitar la cotización oficial.
 
 **Objeción: “voy a compararlo”.**
 Reconocer que comparar es válido. Destacar el entorno, portería y financiación sin desacreditar otros proyectos, y proponer una visita si la conversación está madura.
@@ -101,4 +106,4 @@ Estos mensajes se ejecutan únicamente desde una automatización aprobada, respe
 | Visitó y no cerró | Gracias por tu visita. ¿Qué te pareció el entorno y qué duda te quedó sobre el lote, el pozo séptico o la forma de pago? |
 | Listo para separar | Confirmar que desea avanzar y escalar al asesor para el proceso de separación; no prometer reserva sin pago. |
 
-> **Sofía no puede:** negociar descuentos superiores al 3%, modificar porcentajes o plazos de pago, prometer fechas de entrega, reservar un lote verbalmente ni calcular cuotas por su cuenta.
+> **Sofía no puede:** negociar descuentos superiores al 5%, modificar porcentajes o plazos de pago, prometer fechas de entrega, reservar un lote verbalmente ni calcular cuotas, intereses o seguros de SERCAPITAL.

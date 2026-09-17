@@ -462,6 +462,8 @@ _FINANCIACION_ESTANDAR = {
     "separacion_pct": 0.05, "cuota_inicial_pct": 0.25, "cuota_inicial_meses": 6, "saldo_meses": 60,
 }
 _FINANCIACION_PROYECTOS = {
+    # Buenavista: 5% de separación + 15% de inicial hasta en 6 meses + 80% a 84 meses.
+    "buenavista": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.15, "cuota_inicial_meses": 6, "saldo_meses": 84},
     "reservas_ilama": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.15, "cuota_inicial_meses": 6, "saldo_meses": 24},
     "maloka_mallki": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.15, "cuota_inicial_meses": 2, "saldo_meses": 18},
     "cascata": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.10, "cuota_inicial_meses": 2, "saldo_meses": 36},
@@ -600,6 +602,7 @@ def _construir_contexto_crm(
             except (TypeError, ValueError):
                 return (1, item[0])
 
+        slug_proyecto = str((proyecto or {}).get("slug") or "").lower()
         estructura_fin = _estructura_financiacion(proyecto)
         grupos_ordenados = sorted(resumen_areas.items(), key=_orden_area)
         for area, grupo in grupos_ordenados[:30]:
@@ -612,14 +615,15 @@ def _construir_contexto_crm(
                     linea += f" | Precio CRM: ${minimo:,.0f}"
                 else:
                     linea += f" | Rango CRM: ${minimo:,.0f} a ${maximo:,.0f}"
-                sim = _simular_financiacion(minimo, estructura_fin)
-                linea += (
-                    f" | Simulación estándar sobre ${float(minimo):,.0f}: "
-                    f"separación ${sim['separacion']:,.0f}, "
-                    f"cuota inicial ≈ ${sim['cuota_inicial_mensual']:,.0f}/mes "
-                    f"x {sim['cuota_inicial_meses']} meses, "
-                    f"saldo ≈ ${sim['saldo_mensual']:,.0f}/mes x {sim['saldo_meses']} meses"
-                )
+                if slug_proyecto != "buenavista":
+                    sim = _simular_financiacion(minimo, estructura_fin)
+                    linea += (
+                        f" | Simulación estándar sobre ${float(minimo):,.0f}: "
+                        f"separación ${sim['separacion']:,.0f}, "
+                        f"cuota inicial ≈ ${sim['cuota_inicial_mensual']:,.0f}/mes "
+                        f"x {sim['cuota_inicial_meses']} meses, "
+                        f"saldo ≈ ${sim['saldo_mensual']:,.0f}/mes x {sim['saldo_meses']} meses"
+                    )
             partes.append(linea)
         if len(grupos_ordenados) > 30:
             partes.append(
@@ -664,7 +668,7 @@ _TOOL_ESCALAR_ASESOR = {
         "Notifica al asesor humano para que contacte al cliente. "
         "ÚSALO SOLO en estos casos específicos: "
         "(1) El cliente pide hablar con una persona humana de forma explícita. "
-        "(2) El cliente quiere negociar precio o un descuento mayor al 3%. "
+        "(2) El cliente quiere negociar precio o un descuento mayor al autorizado para su proyecto. "
         "(3) El cliente tiene una queja, problema legal, tema de cartera o escrituras. "
         "NO usar para preguntas sobre proyectos, disponibilidad, precios o para agendar citas — "
         "esas las gestiona Sofía directamente con confirmar_cita."
@@ -929,6 +933,19 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
             "Si el cliente lo pide, dáselo directamente sin agregar advertencias ni excusas."
         )
     if proyecto:
+        if str(proyecto.get("slug") or "").lower() == "buenavista":
+            lineas.append(
+                "- FINANCIACIÓN BUENAVISTA: esta condición anula la financiación global: "
+                "5% de separación, 15% de cuota inicial hasta en 6 meses sin intereses y "
+                "80% de saldo hasta en 84 cuotas con SERCAPITAL CORP. Pago de contado: 5% de "
+                "descuento. Nunca digas 25% de inicial ni 60 o 70 meses para Buenavista."
+            )
+            lineas.append(
+                "- SERCAPITAL BUENAVISTA: es la aliada financiera. No calcules ni des cuotas "
+                "mensuales, intereses, seguros ni valores aproximados del crédito, porque esos "
+                "se definen en la cotización oficial de SERCAPITAL. Solo informa los porcentajes "
+                "y plazos autorizados; si piden una cuota, ofrece solicitar la cotización oficial."
+            )
         direccion = proyecto.get("direccion_visita")
         maps_url = proyecto.get("google_maps_url")
         if direccion:
