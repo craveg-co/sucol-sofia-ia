@@ -176,7 +176,8 @@ class DatosOficialesTest(unittest.TestCase):
         self.assertIn("sur de Jamundí", respuesta)
         self.assertNotIn(PROYECTO["direccion_visita"], respuesta)
         self.assertNotIn(PROYECTO["google_maps_url"], respuesta)
-        self.assertIn("enlace oficial del terreno", respuesta)
+        self.assertIn("ScaRcZEMnyPdsuZNA", respuesta)
+        self.assertIn("Mapa oficial del proyecto", respuesta)
 
     def test_en_donde_estan_ubicados_responde_sin_modelo(self):
         respuesta = _respuesta_recursos_proyecto(

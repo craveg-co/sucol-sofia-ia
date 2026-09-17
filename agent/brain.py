@@ -223,6 +223,17 @@ def _ubicacion_oficial_proyecto(proyecto: dict | None) -> str:
     )
 
 
+def _mapa_oficial_proyecto(proyecto: dict | None) -> str:
+    """Obtiene el mapa del terreno desde CRM o la ficha oficial del proyecto."""
+    for campo in ("google_maps_proyecto_url", "ubicacion_maps_url"):
+        url = str((proyecto or {}).get(campo) or "").strip()
+        if url.startswith(("https://", "http://")):
+            return url
+
+    url_ficha = _dato_ficha_proyecto(proyecto, "Mapa del proyecto")
+    return url_ficha if url_ficha.startswith(("https://", "http://")) else ""
+
+
 def _cargar_config_prompts() -> dict:
     try:
         with (_BASE_DIR / "config" / "prompts.yaml").open("r", encoding="utf-8") as f:
@@ -1671,13 +1682,9 @@ def _respuesta_recursos_proyecto(
         else:
             partes.append("No tengo registrada la ubicación exacta del proyecto.")
 
-        mapa_proyecto = str(
-            proyecto.get("google_maps_proyecto_url")
-            or proyecto.get("ubicacion_maps_url")
-            or ""
-        ).strip()
-        if mapa_proyecto.startswith(("https://", "http://")):
-            partes.append(f"Mapa oficial del proyecto: {mapa_proyecto}")
+        mapa_proyecto = _mapa_oficial_proyecto(proyecto)
+        if mapa_proyecto:
+            partes.append(f"📍 Mapa oficial del proyecto: {mapa_proyecto}")
         else:
             partes.append(
                 "Todavía no tengo registrado el enlace oficial del terreno para compartirte la ubicación exacta."
