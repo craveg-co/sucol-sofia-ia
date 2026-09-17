@@ -18,6 +18,7 @@ from agent.brain import (
     _respuesta_solicitud_info_proyecto,
     _respuesta_sin_proyecto,
     _resumen_cita_oficial,
+    _resumen_lead_para_asesor,
     _respuesta_operativa_visita,
     _sanitizar_historial,
     _validar_respuesta_oficial,
@@ -578,6 +579,28 @@ class DatosOficialesTest(unittest.TestCase):
         mensajes = separar_mensajes_whatsapp(_mensaje_fallback(), None)
 
         self.assertEqual(mensajes, [_mensaje_fallback()])
+
+
+    def test_handoff_summary_uses_official_project_and_customer_profile(self):
+        resumen = _resumen_lead_para_asesor(
+            "Visita Presencial",
+            PROYECTO,
+            {
+                "proposito_compra": "Vivienda",
+                "area_buscada": "500 a 700 m2",
+                "forma_pago": "Financiacion",
+                "plazo_compra": "Tres meses",
+                "objeciones": "Quiere entender el pozo septico",
+                "siguiente_paso": "Visita confirmada",
+            },
+        )
+
+        self.assertIn("Proyecto: Santa Elena", resumen)
+        self.assertIn("Vivienda", resumen)
+        self.assertIn("500 a 700 m2", resumen)
+        self.assertIn("Forma de pago: Financiacion", resumen)
+        self.assertIn("Dudas/objeciones: Quiere entender el pozo septico", resumen)
+        self.assertNotIn("Ciudadela", resumen)
 
 
 if __name__ == "__main__":

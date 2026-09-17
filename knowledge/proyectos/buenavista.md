@@ -1,47 +1,100 @@
 # PARCELACIÓN CAMPESTRE BUENAVISTA — JAMUNDÍ
 
-## Información Comercial y Técnica
+## Fuente comercial vigente
+
+Esta ficha traduce el guion comercial aprobado de Buenavista a reglas para Sofía. El inventario, los precios, las áreas disponibles y cualquier promoción vigente siempre se toman del CRM; si el CRM los contradice, el CRM prevalece. Para este proyecto, las condiciones de pago de esta ficha prevalecen sobre la financiación estándar global.
 
 | Campo | Detalle |
 | --- | --- |
-| **Ubicación** | A 10 min del casco urbano del sur de Jamundí, Valle del Cauca (Zona Campestre) |
-| **Tipo** | Parcelación campestre cerrada con portería de seguridad |
-| **Total / Etapas** | Macroproyecto de 537 lotes en 3 etapas. Solo se comercializa Etapa 1 actualmente |
-| **Áreas y disponibilidad** | Dato dinámico: usar exclusivamente el inventario incluido desde el CRM |
-| **Precios** | Dato dinámico: usar exclusivamente los precios incluidos desde el CRM. Descuentos de contado sujetos a confirmación |
-| **Pago** | Estándar SUCOL: 5% sep + 25% en 6 cuotas sin intereses + 70% a 60 meses SERCAPITAL |
-| **Entrega** | Lanzamiento agosto 2025. Entrega proyectada 2028 |
-| **Estado** | Venta activa — Fase de lanzamiento, precios más bajos del mercado campestre |
-| **Construcción** | Diseño libre. Ocupación máx. 30% del área del lote. Hasta 2 pisos + terraza |
-| **Servicios** | Energía eléctrica y agua (acueducto). Vías en huella y alumbrado. Pozo séptico individual y medidores por cuenta del comprador al construir |
+| **Ubicación** | El proyecto está en el sur de Jamundí, vía Jamundí–Guachinte, km 7. Aproximadamente a 35 minutos del sur de Cali y 10 minutos del Hospital Piloto de Jamundí. |
+| **Mapa del proyecto** | https://maps.app.goo.gl/ScaRcZEMnyPdsuZNA |
+| **Tipo** | Parcelación campestre cerrada, sobre planos, con portería. |
+| **Etapa** | Se comercializa la Etapa 1. |
+| **Áreas y disponibilidad** | Consultar exclusivamente el inventario actual del CRM. Como referencia del guion: lotes entre 500 m² y 1.200 m². |
+| **Precios** | Consultar exclusivamente precios actuales del CRM. Como referencia del guion: desde $79.500.000 para 500 m². |
+| **Pago** | Separación del 5% del valor (mínimo $1.000.000); cuota inicial del 25% diferible hasta en 6 meses sin intereses; saldo con SERCAPITAL CORP hasta 70 meses. Pago de contado: descuento del 3% sobre el valor del lote. |
+| **Entrega** | Proyecto sobre planos. No prometer una fecha: el cronograma exacto se confirma con Dirección Comercial al momento de la separación. |
+| **Construcción** | Se puede construir hasta el 30% del área total del lote. |
+| **Servicios** | Conexión a acueducto, energía y alumbrado; vías internas y portería. No tiene alcantarillado: el propietario construye su pozo séptico con asesoría gratuita de Sauces Ingeniería. |
 
-## Amenidades y Entorno
+## Propuesta de valor
 
-- Portería de acceso vigilada, senderos peatonales integrados con la naturaleza, zonas verdes paisajísticas.
-- A 15 min del sur de Jamundí. Paisajes naturales, aire puro, cordilleras y fincas campestres.
-- Comprar en fase de lanzamiento en parcelación cerrada garantiza la mayor curva de valorización. El precio/m² aumentará a medida que avancen obras de portería y vías.
+- Entorno natural con montañas, vegetación nativa, vista y río que bordea el predio.
+- Espacio para proyectar una casa finca sin alejarse de Cali y Jamundí.
+- Financiación con SERCAPITAL CORP para facilitar la compra.
 
-## Perfil del Comprador Ideal
+## Recursos oficiales
 
-- Familias o profesionales del sur del Valle/Cali que quieren su propia casa de campo
-- Inversionistas patrimoniales de mediano plazo
-- Estrato 3, 4 y 5. Motivación: desconexión del ruido urbano, seguridad de condominio cerrado, precio de lanzamiento
+- Brochure: usar el enlace oficial cargado por el sistema.
+- Video: https://youtu.be/CaaRcg0N9M8?si=6IJkUMMJO4FFK__6
+- Ubicación: usar el enlace de Google Maps de esta ficha, salvo que el CRM entregue uno distinto y oficial.
 
-## Manejo de Objeciones
+## Flujo comercial Buenavista
 
-**¿El proyecto incluye alcantarillado?**
-Al ser una parcelación campestre ecológica, el proyecto incluye conexiones de agua y energía. El manejo de aguas residuales se realiza mediante pozo séptico individual (sistema STAR) que el propietario instala al construir, garantizando el cuidado del entorno. Brindamos asesoría técnica completa.
+El objetivo es entregar al asesor un lead preparado, no enviar todo el brochure de una vez.
 
-**Está muy caro:**
-Este es el precio más bajo del mercado campestre cerrado en Jamundí — y estamos en fase de lanzamiento. Cada avance de obra sube el precio. ¿Cuánto puedes destinar mensualmente? Con eso te calculo la simulación.
+1. **Contexto y permiso.** Si viene del CRM, reconocer su solicitud de información; si inicia por fuera, presentarse y confirmar que desea conocer Buenavista.
+2. **Descubrir necesidad.** Hacer solo una pregunta por mensaje y no repetir datos ya presentes en CRM o historial. Prioridad: propósito (vivir o invertir), ciudad, área o presupuesto, forma de pago, plazo para comprar y decisor de compra.
+3. **Argumentar según perfil.** Para vivienda: casa finca, entorno y cercanía. Para inversión: etapa sobre planos y potencial de valorización, sin prometer rentabilidad ni aumentos de precio.
+4. **Resolver la duda puntual.** Entregar brochure, video o respuesta FAQ antes de invitar a una cita cuando el cliente lo pida.
+5. **Avanzar.** Con interés y perfil suficiente, proponer visita, llamada o cita virtual. Si desea que lo contacten sin agendar, calificarlo y pasar el resumen completo al asesor.
 
-**Tengo que consultarlo con mi familia:**
-¡Perfecto! Puedo enviarte simulación y planos. ¿Agendamos una visita para que toda la familia conozca el entorno campestre? El precio de lanzamiento no dura.
+### Datos mínimos para calificar
 
-**La entrega es muy lejos (2028):**
-Comprar en fase de lanzamiento es exactamente lo que permite la mayor valorización — el precio sube a medida que avanza la obra. El que entra hoy captura toda esa curva.
+Sofía debe reunir los que el cliente esté dispuesto a compartir: propósito de compra, ciudad, área o presupuesto, forma de pago, plazo de compra, decisor, objeciones y siguiente paso. No debe bloquear una cita por faltar un dato ni inventar un dato ausente.
 
-**No tengo la cuota inicial completa:**
-Puedes separar hoy con el 5%. El 25% restante en hasta 6 meses sin intereses. No dejes pasar el precio de lanzamiento.
+### Criterio de entrega al asesor
 
-> **Sofía NO puede:** ofrecer descuentos sobre el m², cambiar porcentaje de inicial, modificar plazos a más de 6 meses, ni reservar lotes verbalmente sin pago de separación.
+- **Interés alto:** desea separar, solicita hablar con una persona, acepta una cita o tiene necesidad, presupuesto/área y plazo claros.
+- **Interés medio:** quiere que lo contacten o requiere seguimiento, con al menos propósito y una señal de ajuste económico o de plazo.
+- **Sin calificar aún:** solo pidió información; Sofía continúa resolviendo y perfilando sin transferir prematuramente.
+
+## FAQ y manejo de objeciones
+
+**¿Cuánto cuesta y desde qué área?**
+Consultar CRM primero. Como referencia del guion, Etapa 1 partía de 500 m² y $79.500.000. Si no hay valor vigente para el lote consultado, ofrecer confirmarlo con el equipo de SUCOL.
+
+**¿Por qué no tiene alcantarillado? ¿Cómo funciona el pozo séptico?**
+Por ser una parcelación campestre rural no cuenta con red de alcantarillado. Cada propietario construye su pozo séptico; Sauces Ingeniería brinda asesoría gratuita durante el proceso técnico.
+
+**¿Qué servicios incluye?**
+Conexión a acueducto, energía y alumbrado, además de vías internas y portería. El pozo séptico y los medidores se gestionan al construir.
+
+**¿Qué formas de pago manejan?**
+Separación del 5% (mínimo $1.000.000), 25% de inicial hasta en 6 meses sin intereses y saldo hasta 70 meses con SERCAPITAL CORP. El descuento de contado autorizado en el guion es 3%.
+
+**¿Hay seguridad?**
+Sí, es una parcelación cerrada con portería.
+
+**¿Cuándo se entrega?**
+Está sobre planos y se comercializa la Etapa 1. La fecha exacta se confirma con Dirección Comercial al momento de la separación.
+
+**¿Cuánto vale la administración?**
+No afirmar un valor sin dato vigente. Explicar que, por contar con portería y vías internas, puede aplicar una cuota de administración para mantenimiento y seguridad, y confirmar el valor actual con Dirección Comercial.
+
+**¿Puedo conocerlo antes de decidir?**
+Compartir video o brochure si lo solicita; cuando haya interés, proponer una visita presencial para conocer el entorno.
+
+**Objeción: “está caro”.**
+Validar la inquietud, explicar las condiciones de financiación y preguntar cuánto puede destinar o qué cuota inicial contempla. Usar únicamente una simulación precalculada del CRM; nunca calcular una cuota manualmente.
+
+**Objeción: “voy a compararlo”.**
+Reconocer que comparar es válido. Destacar el entorno, portería y financiación sin desacreditar otros proyectos, y proponer una visita si la conversación está madura.
+
+**Objeción: “debo hablarlo con mi familia”.**
+Enviar primero el recurso que pida. Luego ofrecer resolver dudas de pago o coordinar una visita donde pueda asistir su familia, sin presión.
+
+## Seguimiento por escenario
+
+Estos mensajes se ejecutan únicamente desde una automatización aprobada, respetando la ventana de WhatsApp y cualquier solicitud de no contacto.
+
+| Escenario | Mensaje base |
+| --- | --- |
+| Sin respuesta tras 24–48 h | Hola, ¿pudiste revisar la información de Buenavista? Puedo ayudarte con el proyecto, la forma de pago o las dudas que te hayan quedado. |
+| Sin respuesta tras varios intentos (día 4–5) | Quiero asegurarme de que tengas la información necesaria sobre Buenavista. ¿Te sirve una llamada corta esta semana o prefieres que resolvamos tus dudas por aquí? |
+| Pidió tiempo | Claro, tómate el tiempo necesario. Te comparto el video para que lo revises con calma y quedo atenta a tus preguntas. |
+| Agendó y no asistió | Entiendo que no pudiste asistir. ¿Te gustaría reagendar para conocer el entorno de Buenavista? |
+| Visitó y no cerró | Gracias por tu visita. ¿Qué te pareció el entorno y qué duda te quedó sobre el lote, el pozo séptico o la forma de pago? |
+| Listo para separar | Confirmar que desea avanzar y escalar al asesor para el proceso de separación; no prometer reserva sin pago. |
+
+> **Sofía no puede:** negociar descuentos superiores al 3%, modificar porcentajes o plazos de pago, prometer fechas de entrega, reservar un lote verbalmente ni calcular cuotas por su cuenta.

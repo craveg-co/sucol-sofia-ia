@@ -698,9 +698,45 @@ _TOOL_CALIFICAR_SIN_VISITA = {
             "resumen": {
                 "type": "string",
                 "description": (
-                    "Resumen de la conversación: proyecto de interés, presupuesto, "
-                    "propósito de compra, dudas principales y por qué no agendó visita"
+                    "Nota libre muy breve con información relevante que no esté en los campos. "
+                    "No inventar datos no compartidos por el cliente."
                 ),
+            },
+            "proposito_compra": {
+                "type": "string",
+                "description": "Propósito declarado: vivienda, inversión u otro. Vacío si no se conoce.",
+            },
+            "ciudad": {
+                "type": "string",
+                "description": "Ciudad o país donde reside el cliente. Vacío si no se conoce.",
+            },
+            "area_buscada": {
+                "type": "string",
+                "description": "Área, rango o tipo de lote que busca. Vacío si no se conoce.",
+            },
+            "presupuesto_o_cuota": {
+                "type": "string",
+                "description": "Presupuesto, cuota inicial o cuota mensual declarada. Vacío si no se conoce.",
+            },
+            "forma_pago": {
+                "type": "string",
+                "description": "Contado, financiación, o estado de la cuota inicial. Vacío si no se conoce.",
+            },
+            "plazo_compra": {
+                "type": "string",
+                "description": "Cuándo espera decidir o comprar. Vacío si no se conoce.",
+            },
+            "decisor_compra": {
+                "type": "string",
+                "description": "Si decide solo o con pareja/familia. Vacío si no se conoce.",
+            },
+            "objeciones": {
+                "type": "string",
+                "description": "Dudas u objeciones expresadas por el cliente. Vacío si no se conocen.",
+            },
+            "siguiente_paso": {
+                "type": "string",
+                "description": "Acción acordada: llamada, visita, seguimiento o contacto del asesor.",
             },
         },
         "required": ["nombre_cliente", "resumen"],
@@ -737,8 +773,17 @@ _TOOL_CONFIRMAR_CITA = {
             },
             "resumen": {
                 "type": "string",
-                "description": "Resumen breve de lo que conversó el cliente con Sofia",
+                "description": "Nota libre breve para el asesor; no inventar datos no compartidos.",
             },
+            "proposito_compra": {"type": "string", "description": "Vivienda, inversión u otro; vacío si no se conoce."},
+            "ciudad": {"type": "string", "description": "Ciudad o país del cliente; vacío si no se conoce."},
+            "area_buscada": {"type": "string", "description": "Área o rango buscado; vacío si no se conoce."},
+            "presupuesto_o_cuota": {"type": "string", "description": "Presupuesto, inicial o cuota declarada; vacío si no se conoce."},
+            "forma_pago": {"type": "string", "description": "Contado, financiación o estado de la inicial; vacío si no se conoce."},
+            "plazo_compra": {"type": "string", "description": "Plazo de decisión o compra; vacío si no se conoce."},
+            "decisor_compra": {"type": "string", "description": "Decisor o participantes en la compra; vacío si no se conoce."},
+            "objeciones": {"type": "string", "description": "Dudas u objeciones del cliente; vacío si no se conocen."},
+            "siguiente_paso": {"type": "string", "description": "Acción acordada con el cliente."},
             "video_url": {
                 "type": "string",
                 "description": "Enlace de videollamada, dejar vacío si no aplica",
@@ -838,6 +883,10 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
         "Mientras falte info usa lenguaje condicional: 'Perfecto, para confirmar tu visita "
         "del [dia] a las [hora] necesito tu nombre completo'. Solo usa 'listo'/'agendado' "
         "DESPUES de que confirmar_cita se haya ejecutado.",
+        "- RESUMEN PARA EL ASESOR: al llamar confirmar_cita o calificar_lead_sin_visita, "
+        "completa los campos de perfil que el cliente haya compartido: propósito, ciudad, "
+        "área, presupuesto o cuota, forma de pago, plazo de compra, decisor, objeciones y "
+        "siguiente paso. Deja vacío lo que no se conoce; nunca lo inventes.",
         "- La fecha de hoy es: " + _fecha_colombia(),
         "- Usa esa fecha exacta siempre que necesites referenciar el día de hoy.",
     ]
@@ -1925,6 +1974,43 @@ def _resumen_cita_oficial(
     return f"El cliente solicitó programar una {tipo} con el equipo comercial de SUCOL."
 
 
+def _limpiar_dato_perfil(valor: object, limite: int = 180) -> str:
+    """Normaliza datos declarados por el cliente antes de enviarlos al asesor."""
+    texto = re.sub(r"\s+", " ", str(valor or "")).strip()
+    return texto[:limite]
+
+
+def _resumen_lead_para_asesor(
+    tipo: str,
+    proyecto: dict | None,
+    datos: dict,
+    lead: dict | None = None,
+) -> str:
+    """Construye un handoff legible con hechos del CRM y datos declarados por el lead."""
+    nombre_proyecto = _limpiar_dato_perfil((proyecto or {}).get("nombre")) or "No identificado"
+    campos = (
+        ("proposito_compra", "Propósito"),
+        ("ciudad", "Ciudad"),
+        ("area_buscada", "Área buscada"),
+        ("presupuesto_o_cuota", "Presupuesto/cuota"),
+        ("forma_pago", "Forma de pago"),
+        ("plazo_compra", "Plazo de compra"),
+        ("decisor_compra", "Decisor"),
+        ("objeciones", "Dudas/objeciones"),
+        ("siguiente_paso", "Siguiente paso"),
+    )
+    lineas = [f"Proyecto: {nombre_proyecto}", f"Gestión: {_limpiar_dato_perfil(tipo, 60)}"]
+    for clave, etiqueta in campos:
+        valor = _limpiar_dato_perfil(datos.get(clave) or (lead or {}).get(clave))
+        if valor:
+            lineas.append(f"{etiqueta}: {valor}")
+
+    nota = _limpiar_dato_perfil(datos.get("resumen"), 300)
+    if nota:
+        lineas.append(f"Notas: {nota}")
+    return "\n".join(lineas)
+
+
 def _texto_proyecto_para_matching(proyecto: dict | None) -> str:
     if not proyecto:
         return ""
@@ -2186,11 +2272,23 @@ async def generar_respuesta_con_tools(
                         if correccion:
                             resultado_tool = correccion
                         else:
-                            datos_cita["resumen"] = _resumen_cita_oficial(
-                                datos_cita.get("tipo_cita", "cita"),
+                            datos_cita["resumen"] = _resumen_lead_para_asesor(
+                                datos_cita.get("tipo_cita", "Cita"),
                                 proyecto,
+                                datos_cita,
+                                contexto_lead,
                             )
-                            resultado_tool = await confirmar_cita(telefono=telefono, **datos_cita)
+                            datos_cita_confirmacion = {
+                                clave: datos_cita.get(clave, "")
+                                for clave in (
+                                    "nombre_cliente", "tipo_cita", "fecha_cita", "hora_cita",
+                                    "resumen", "video_url",
+                                )
+                            }
+                            resultado_tool = await confirmar_cita(
+                                telefono=telefono,
+                                **datos_cita_confirmacion,
+                            )
                             if resultado_tool.startswith("Cita agendada"):
                                 resultado_cita_confirmada = resultado_tool
                     except Exception as e:
@@ -2216,7 +2314,18 @@ async def generar_respuesta_con_tools(
                         resultado_tool = "Tu solicitud fue registrada. El equipo te contactará pronto."
                 elif tu.name == "calificar_lead_sin_visita":
                     try:
-                        resultado_tool = await calificar_lead_sin_visita(telefono=telefono, **tu.input)
+                        datos_calificacion = dict(tu.input)
+                        resumen = _resumen_lead_para_asesor(
+                            "Contacto solicitado sin cita",
+                            proyecto,
+                            datos_calificacion,
+                            contexto_lead,
+                        )
+                        resultado_tool = await calificar_lead_sin_visita(
+                            telefono=telefono,
+                            nombre_cliente=datos_calificacion["nombre_cliente"],
+                            resumen=resumen,
+                        )
                     except Exception as e:
                         logger.error(f"Error ejecutando calificar_lead_sin_visita: {e}")
                         resultado_tool = "Tus datos quedaron registrados. Un asesor te contactará pronto."
