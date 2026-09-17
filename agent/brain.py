@@ -60,6 +60,19 @@ def _bloque_desde_json(block: dict) -> SimpleNamespace:
     return SimpleNamespace(type=tipo)
 
 
+def _extraer_texto_respuesta(content: list) -> str:
+    """Obtiene el primer bloque de texto, aunque la respuesta incluya bloques auxiliares."""
+    for bloque in content or []:
+        if getattr(bloque, "type", None) != "text":
+            continue
+        texto = getattr(bloque, "text", None)
+        if isinstance(texto, str) and texto.strip():
+            return texto
+
+    tipos = [str(getattr(bloque, "type", "desconocido")) for bloque in content or []]
+    raise ValueError(f"Respuesta de Anthropic sin bloque de texto: {tipos}")
+
+
 class _AnthropicMessages:
     async def create(self, model: str, max_tokens: int, system: str, messages: list, tools: list | None = None):
         api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -2373,7 +2386,7 @@ async def generar_respuesta_con_tools(
                 f"{response2.usage.output_tokens} out)"
             )
         else:
-            respuesta = response.content[0].text
+            respuesta = _extraer_texto_respuesta(response.content)
             logger.info(f"Respuesta generada ({response.usage.input_tokens} in / {response.usage.output_tokens} out)")
 
         return _procesar_respuesta_cliente(
@@ -2472,7 +2485,7 @@ async def generar_respuesta(
             system=prompt_final,
             messages=mensajes,
         )
-        respuesta = response.content[0].text
+        respuesta = _extraer_texto_respuesta(response.content)
         logger.info(f"Respuesta generada ({response.usage.input_tokens} in / {response.usage.output_tokens} out)")
         return _procesar_respuesta_cliente(
             respuesta,

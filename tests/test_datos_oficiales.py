@@ -1,10 +1,12 @@
 import unittest
+from types import SimpleNamespace
 
 from agent.brain import (
     clasificar_descarte_sofia,
     _cargar_knowledge,
     _corregir_disponibilidad,
     _construir_contexto_crm,
+    _extraer_texto_respuesta,
     _mensaje_error,
     _mensaje_fallback,
     _normalizar_historial_api,
@@ -35,6 +37,14 @@ PROYECTO = {
 
 
 class DatosOficialesTest(unittest.TestCase):
+    def test_extrae_texto_aunque_haya_bloques_auxiliares_antes(self):
+        respuesta = _extraer_texto_respuesta([
+            SimpleNamespace(type="thinking"),
+            SimpleNamespace(type="text", text="Buenavista tiene opciones disponibles."),
+        ])
+
+        self.assertEqual(respuesta, "Buenavista tiene opciones disponibles.")
+
     def test_historial_para_api_inicia_con_cliente_y_alterna_roles(self):
         mensajes = _normalizar_historial_api([
             {"role": "assistant", "content": "Plantilla inicial"},
