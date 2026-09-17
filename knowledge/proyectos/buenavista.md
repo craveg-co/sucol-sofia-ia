@@ -12,7 +12,7 @@ Esta ficha traduce el guion comercial aprobado de Buenavista a reglas para Sofí
 | **Etapa** | Se comercializa la Etapa 1. |
 | **Áreas y disponibilidad** | Consultar exclusivamente el inventario actual del CRM. Como referencia del guion: lotes entre 500 m² y 1.200 m². |
 | **Precios** | Consultar exclusivamente precios actuales del CRM. Como referencia del guion: desde $79.500.000 para 500 m². |
-| **Pago** | Separación del 5% del valor (mínimo $1.000.000); cuota inicial del 25% diferible hasta en 6 meses sin intereses; saldo con SERCAPITAL CORP hasta 70 meses. Pago de contado: descuento del 3% sobre el valor del lote. |
+| **Pago** | Separación del 5% del valor del lote; cuota inicial del 25% diferible hasta en 6 meses sin intereses; saldo con SERCAPITAL CORP hasta 70 meses. Pago de contado: descuento del 3% sobre el valor del lote. |
 | **Entrega** | Proyecto sobre planos con proyección de entrega en 2029. El cronograma y la fecha exacta se confirman con Dirección Comercial al momento de la separación. |
 | **Construcción** | Se puede construir hasta el 30% del área total del lote. |
 | **Servicios** | Conexión a acueducto, energía y alumbrado; vías internas y portería. No tiene alcantarillado: el propietario construye su pozo séptico con asesoría gratuita de Sauces Ingeniería. |
@@ -65,7 +65,7 @@ Por ser una parcelación campestre rural no cuenta con red de alcantarillado. Ca
 Conexión a acueducto, energía y alumbrado, además de vías internas y portería. El pozo séptico y los medidores se gestionan al construir.
 
 **¿Qué formas de pago manejan?**
-Separación del 5% (mínimo $1.000.000), 25% de inicial hasta en 6 meses sin intereses y saldo hasta 70 meses con SERCAPITAL CORP. El descuento de contado autorizado en el guion es 3%.
+Separación del 5% del valor del lote, 25% de inicial hasta en 6 meses sin intereses y saldo hasta 70 meses con SERCAPITAL CORP. El descuento de contado autorizado en el guion es 3%.
 
 **¿Hay seguridad?**
 Sí, es una parcelación cerrada con portería.

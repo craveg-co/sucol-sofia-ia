@@ -580,6 +580,23 @@ class DatosOficialesTest(unittest.TestCase):
             "La proyección de entrega es 2029. ¿Buscas invertir o vivir?",
         ])
 
+    def test_divide_respuesta_larga_por_frases_sin_marcador(self):
+        texto = (
+            "Buenavista es una parcelación campestre cerrada sobre planos en el sur de Jamundí. "
+            "La Etapa 1 tiene alternativas que se consultan en el inventario actual. "
+            "Cuenta con portería, vías internas, acueducto, energía y alumbrado. "
+            "La proyección de entrega es 2029 y el cronograma exacto se confirma al separar. "
+            "Cada lote permite proyectar una casa finca en un entorno natural y tranquilo. "
+            "También podemos revisar una simulación oficial según el lote que te interese. "
+            "¿Lo estás buscando para vivir o invertir?"
+        )
+
+        mensajes = separar_mensajes_whatsapp(texto, {"slug": "buenavista"})
+
+        self.assertGreater(len(mensajes), 1)
+        self.assertTrue(all(len(mensaje) <= 420 for mensaje in mensajes))
+        self.assertTrue(mensajes[-1].endswith("¿Lo estás buscando para vivir o invertir?"))
+
     def test_cascata_no_recibe_cta_generada(self):
         mensajes = separar_mensajes_whatsapp(
             "Cascata ofrece eco-hábitats sustentables en Pance.",

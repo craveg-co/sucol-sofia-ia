@@ -789,6 +789,13 @@ async def webhook_handler(request: Request):
                 respuesta = _mensaje_error()
 
             mensajes_salida = separar_mensajes_whatsapp(respuesta, proyecto)
+            try:
+                pausa_entre_mensajes = max(
+                    0.0,
+                    float(os.getenv("SOFIA_PAUSA_ENTRE_MENSAJES_SEGUNDOS", "1.2")),
+                )
+            except ValueError:
+                pausa_entre_mensajes = 1.2
 
             # ── Guardar memoria y enviar (silenciosos si fallan)
             try:
@@ -800,7 +807,7 @@ async def webhook_handler(request: Request):
             try:
                 for indice, mensaje_salida in enumerate(mensajes_salida):
                     if indice:
-                        await asyncio.sleep(0.6)
+                        await asyncio.sleep(pausa_entre_mensajes)
                     await proveedor.enviar_mensaje(msg.telefono, mensaje_salida)
             except Exception as e:
                 logger.error(f"Error enviando mensaje a {telefono}: {e}")

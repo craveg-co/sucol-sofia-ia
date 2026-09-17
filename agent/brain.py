@@ -821,8 +821,8 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
         "por turno, termina con UNA pregunta útil para perfilar o avanzar y espera la respuesta "
         "del cliente antes de abrir otro tema.",
         "- MENSAJES MÚLTIPLES: si separar ideas completas mejora la lectura, puedes usar una "
-        "línea con <PAUSA> entre mensajes. Úsala como máximo dos veces y nunca después de la "
-        "pregunta final. Si no hace falta, responde en un solo mensaje.",
+        "línea con <PAUSA> entre mensajes. Nunca la uses después de la pregunta final. Si no "
+        "hace falta, responde en un solo mensaje; los textos largos se separan automáticamente.",
         "- NO escales al asesor humano solo porque el cliente hizo una pregunta informativa. "
         "Respóndela tú directamente con la información de tu ficha.",
         "- PROACTIVIDAD: después de responder, invita de forma natural a un siguiente paso, "
@@ -1478,10 +1478,10 @@ def separar_mensajes_whatsapp(
     proyecto: dict | None = None,
 ) -> list[str]:
     """
-    Devuelve los mensajes que Sofía decidió enviar en este turno.
+    Divide respuestas extensas en mensajes legibles, respetando párrafos y frases.
 
-    Por defecto se envía un solo mensaje y se espera la respuesta del cliente. El
-    modelo puede marcar pausas explícitas entre ideas completas con <PAUSA>.
+    Sofía puede marcar una pausa explícita con <PAUSA>. Aunque no la use, los textos
+    largos se separan automáticamente por temas para no verse como un bloque robótico.
     """
     texto = (respuesta or "").strip()
     if not texto:
@@ -1490,12 +1490,59 @@ def separar_mensajes_whatsapp(
     if texto in (_mensaje_error(), _mensaje_fallback()):
         return [texto]
 
-    mensajes = [
-        bloque.strip()
-        for bloque in re.split(r"\s*<PAUSA>\s*", texto, flags=re.IGNORECASE)
-        if bloque.strip()
-    ]
-    return mensajes[:3] or [texto]
+    try:
+        limite = max(240, int(os.getenv("SOFIA_MAX_CARACTERES_MENSAJE", "420")))
+    except ValueError:
+        limite = 420
+
+    def dividir_bloque(bloque: str) -> list[str]:
+        parrafos = [p.strip() for p in re.split(r"\n\s*\n", bloque) if p.strip()]
+        unidades: list[str] = []
+        for parrafo in parrafos:
+            if len(parrafo) <= limite:
+                unidades.append(parrafo)
+                continue
+            frases = re.split(
+                r"(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÜÑ¿¡])",
+                parrafo,
+            )
+            unidades.extend(frase.strip() for frase in frases if frase.strip())
+
+        mensajes_bloque: list[str] = []
+        actual = ""
+        for unidad in unidades:
+            if len(unidad) > limite:
+                palabras = unidad.split()
+                fragmento = ""
+                for palabra in palabras:
+                    candidato = f"{fragmento} {palabra}".strip()
+                    if fragmento and len(candidato) > limite:
+                        mensajes_bloque.append(fragmento)
+                        fragmento = palabra
+                    else:
+                        fragmento = candidato
+                if fragmento:
+                    if actual:
+                        mensajes_bloque.append(actual)
+                        actual = ""
+                    mensajes_bloque.append(fragmento)
+                continue
+
+            candidato = f"{actual}\n\n{unidad}".strip() if actual else unidad
+            if actual and len(candidato) > limite:
+                mensajes_bloque.append(actual)
+                actual = unidad
+            else:
+                actual = candidato
+        if actual:
+            mensajes_bloque.append(actual)
+        return mensajes_bloque
+
+    mensajes: list[str] = []
+    for bloque in re.split(r"\s*<PAUSA>\s*", texto, flags=re.IGNORECASE):
+        if bloque.strip():
+            mensajes.extend(dividir_bloque(bloque.strip()))
+    return mensajes or [texto]
 
 
 def _respuesta_operativa_visita(
