@@ -12,7 +12,7 @@ Esta ficha traduce el guion comercial aprobado de Buenavista a reglas para Sofí
 | **Etapa** | Se comercializa la Etapa 1. |
 | **Áreas y disponibilidad** | Consultar exclusivamente el inventario actual del CRM. Como referencia del guion: lotes entre 500 m² y 1.200 m². |
 | **Precios** | Consultar exclusivamente precios actuales del CRM. Como referencia del guion: desde $79.500.000 para 500 m². |
-| **Pago** | Separación del 5% del valor del lote; cuota inicial del 15% diferible hasta en 6 meses sin intereses; saldo del 80% con SERCAPITAL CORP hasta 84 cuotas. Pago de contado: descuento del 5% sobre el valor del lote. |
+| **Pago** | Separación del 5% del valor del lote; cuota inicial del 15% diferible hasta en 6 meses sin intereses; saldo del 80% con SERCAPITAL CORP hasta 78 meses. Pago de contado: descuento del 5% sobre el valor del lote. |
 | **Entrega** | Proyecto sobre planos con proyección de entrega en 2029. El cronograma y la fecha exacta se confirman con Dirección Comercial al momento de la separación. |
 | **Construcción** | Se puede construir hasta el 30% del área total del lote. |
 | **Servicios** | Conexión a acueducto, energía y alumbrado; vías internas y portería. No tiene alcantarillado: el propietario construye su pozo séptico con asesoría gratuita de Sauces Ingeniería. |
@@ -67,7 +67,7 @@ Conexión a acueducto, energía y alumbrado, además de vías internas y porter�
 **¿Qué formas de pago manejan?**
 • Separación del 5% del valor del lote.
 • Cuota inicial del 15% hasta en 6 meses sin intereses.
-• Saldo del 80% hasta en 84 cuotas con SERCAPITAL CORP.
+• Saldo del 80% hasta en 78 meses con SERCAPITAL CORP, después de los 6 meses de cuota inicial sin intereses.
 • Pago de contado con descuento del 5%.
 
 SERCAPITAL CORP es la aliada financiera. Sofía no calcula cuotas mensuales, intereses, seguros ni valores aproximados, porque esos valores se definen en la cotización oficial de SERCAPITAL. Si el cliente pide una cuota, Sofía ofrece solicitar esa cotización.

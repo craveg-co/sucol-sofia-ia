@@ -44,7 +44,7 @@ class DatosOficialesTest(unittest.TestCase):
         self.assertEqual(estructura["separacion_pct"], 0.05)
         self.assertEqual(estructura["cuota_inicial_pct"], 0.15)
         self.assertEqual(estructura["cuota_inicial_meses"], 6)
-        self.assertEqual(estructura["saldo_meses"], 84)
+        self.assertEqual(estructura["saldo_meses"], 78)
 
     def test_buenavista_no_inyecta_simulacion_de_sercapital(self):
         contexto = _construir_contexto_crm(

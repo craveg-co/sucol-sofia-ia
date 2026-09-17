@@ -462,8 +462,8 @@ _FINANCIACION_ESTANDAR = {
     "separacion_pct": 0.05, "cuota_inicial_pct": 0.25, "cuota_inicial_meses": 6, "saldo_meses": 60,
 }
 _FINANCIACION_PROYECTOS = {
-    # Buenavista: 5% de separación + 15% de inicial hasta en 6 meses + 80% a 84 meses.
-    "buenavista": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.15, "cuota_inicial_meses": 6, "saldo_meses": 84},
+    # Buenavista: 5% de separación + 15% de inicial hasta en 6 meses + 80% a 78 meses.
+    "buenavista": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.15, "cuota_inicial_meses": 6, "saldo_meses": 78},
     "reservas_ilama": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.15, "cuota_inicial_meses": 6, "saldo_meses": 24},
     "maloka_mallki": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.15, "cuota_inicial_meses": 2, "saldo_meses": 18},
     "cascata": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.10, "cuota_inicial_meses": 2, "saldo_meses": 36},
@@ -937,8 +937,8 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
             lineas.append(
                 "- FINANCIACIÓN BUENAVISTA: esta condición anula la financiación global: "
                 "5% de separación, 15% de cuota inicial hasta en 6 meses sin intereses y "
-                "80% de saldo hasta en 84 cuotas con SERCAPITAL CORP. Pago de contado: 5% de "
-                "descuento. Nunca digas 25% de inicial ni 60 o 70 meses para Buenavista."
+                "80% de saldo hasta en 78 meses con SERCAPITAL CORP. Pago de contado: 5% de "
+                "descuento. Nunca digas 25% de inicial ni 60, 70 u 84 meses para Buenavista."
             )
             lineas.append(
                 "- SERCAPITAL BUENAVISTA: es la aliada financiera. No calcules ni des cuotas "
