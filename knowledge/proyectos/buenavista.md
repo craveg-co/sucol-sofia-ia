@@ -13,7 +13,7 @@ Esta ficha traduce el guion comercial aprobado de Buenavista a reglas para Sofí
 | **Áreas y disponibilidad** | Consultar exclusivamente el inventario actual del CRM. Como referencia del guion: lotes entre 500 m² y 1.200 m². |
 | **Precios** | Consultar exclusivamente precios actuales del CRM. Como referencia del guion: desde $79.500.000 para 500 m². |
 | **Pago** | Separación del 5% del valor (mínimo $1.000.000); cuota inicial del 25% diferible hasta en 6 meses sin intereses; saldo con SERCAPITAL CORP hasta 70 meses. Pago de contado: descuento del 3% sobre el valor del lote. |
-| **Entrega** | Proyecto sobre planos. No prometer una fecha: el cronograma exacto se confirma con Dirección Comercial al momento de la separación. |
+| **Entrega** | Proyecto sobre planos con proyección de entrega en 2029. El cronograma y la fecha exacta se confirman con Dirección Comercial al momento de la separación. |
 | **Construcción** | Se puede construir hasta el 30% del área total del lote. |
 | **Servicios** | Conexión a acueducto, energía y alumbrado; vías internas y portería. No tiene alcantarillado: el propietario construye su pozo séptico con asesoría gratuita de Sauces Ingeniería. |
 
@@ -38,6 +38,10 @@ El objetivo es entregar al asesor un lead preparado, no enviar todo el brochure 
 3. **Argumentar según perfil.** Para vivienda: casa finca, entorno y cercanía. Para inversión: etapa sobre planos y potencial de valorización, sin prometer rentabilidad ni aumentos de precio.
 4. **Resolver la duda puntual.** Entregar brochure, video o respuesta FAQ antes de invitar a una cita cuando el cliente lo pida.
 5. **Avanzar.** Con interés y perfil suficiente, proponer visita, llamada o cita virtual. Si desea que lo contacten sin agendar, calificarlo y pasar el resumen completo al asesor.
+
+### Primera respuesta cuando pide información
+
+Para una solicitud inicial de información, Sofía presenta el proyecto, la etapa, las áreas y precios actuales del CRM, portería/vías internas y la proyección de entrega en 2029. Después pregunta: **“¿Lo estás buscando para vivir o invertir?”**. Puede usar `<PAUSA>` para separar dos ideas completas si mejora la lectura, pero no debe fragmentar el mensaje por obligación.
 
 ### Datos mínimos para calificar
 
@@ -67,7 +71,7 @@ Separación del 5% (mínimo $1.000.000), 25% de inicial hasta en 6 meses sin int
 Sí, es una parcelación cerrada con portería.
 
 **¿Cuándo se entrega?**
-Está sobre planos y se comercializa la Etapa 1. La fecha exacta se confirma con Dirección Comercial al momento de la separación.
+Está sobre planos y se comercializa la Etapa 1, con proyección de entrega en 2029. El cronograma y la fecha exacta se confirman con Dirección Comercial al momento de la separación.
 
 **¿Cuánto vale la administración?**
 No afirmar un valor sin dato vigente. Explicar que, por contar con portería y vías internas, puede aplicar una cuota de administración para mantenimiento y seguridad, y confirmar el valor actual con Dirección Comercial.

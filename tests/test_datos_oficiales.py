@@ -550,35 +550,43 @@ class DatosOficialesTest(unittest.TestCase):
         self.assertNotIn("Para el proyecto", respuesta)
         self.assertIn("Bora tiene 1 opciones disponibles", respuesta)
 
-    def test_separa_informacion_y_pregunta_en_dos_mensajes(self):
+    def test_no_divide_un_mensaje_solo_por_tener_pregunta_final(self):
         mensajes = separar_mensajes_whatsapp(
             "Bora está ubicado en Jamundí y tiene opciones desde 48 m². "
             "¿Quieres más información o prefieres agendar una visita?",
             {"slug": "bora", "nombre": "Bora"},
         )
 
-        self.assertEqual(len(mensajes), 2)
+        self.assertEqual(len(mensajes), 1)
         self.assertIn("Bora está ubicado", mensajes[0])
-        self.assertTrue(mensajes[1].startswith("¿"))
+        self.assertIn("¿Quieres más información", mensajes[0])
 
-    def test_agrega_cta_si_el_modelo_no_la_genero(self):
+    def test_no_agrega_cta_si_el_modelo_no_la_genero(self):
         mensajes = separar_mensajes_whatsapp(
             "Bora está ubicado en Jamundí y cuenta con opciones para vivienda o negocio.",
             {"slug": "bora", "nombre": "Bora"},
         )
 
-        self.assertEqual(len(mensajes), 2)
-        self.assertIn("áreas", mensajes[1])
-        self.assertIn("financiación", mensajes[1])
+        self.assertEqual(mensajes, ["Bora está ubicado en Jamundí y cuenta con opciones para vivienda o negocio."])
 
-    def test_cascata_no_ofrece_visita_directa_en_cta_generada(self):
+    def test_divide_solo_con_marcador_de_pausa(self):
+        mensajes = separar_mensajes_whatsapp(
+            "Buenavista está sobre planos.<PAUSA>La proyección de entrega es 2029. ¿Buscas invertir o vivir?",
+            {"slug": "buenavista", "nombre": "Buenavista"},
+        )
+
+        self.assertEqual(mensajes, [
+            "Buenavista está sobre planos.",
+            "La proyección de entrega es 2029. ¿Buscas invertir o vivir?",
+        ])
+
+    def test_cascata_no_recibe_cta_generada(self):
         mensajes = separar_mensajes_whatsapp(
             "Cascata ofrece eco-hábitats sustentables en Pance.",
             {"slug": "cascata", "nombre": "Cascata"},
         )
 
-        self.assertIn("recorrido virtual 360°", mensajes[1])
-        self.assertNotIn("agendar una visita", mensajes[1])
+        self.assertEqual(mensajes, ["Cascata ofrece eco-hábitats sustentables en Pance."])
 
     def test_mensaje_de_error_no_lleva_cta_pegada(self):
         mensajes = separar_mensajes_whatsapp(_mensaje_error(), {"slug": "bora"})

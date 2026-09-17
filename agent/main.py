@@ -788,14 +788,15 @@ async def webhook_handler(request: Request):
                 logger.exception(f"Error generando respuesta para {telefono}")
                 respuesta = _mensaje_error()
 
+            mensajes_salida = separar_mensajes_whatsapp(respuesta, proyecto)
+
             # ── Guardar memoria y enviar (silenciosos si fallan)
             try:
                 await guardar_mensaje(telefono, "user", msg.texto)
-                await guardar_mensaje(telefono, "assistant", respuesta)
+                await guardar_mensaje(telefono, "assistant", "\n\n".join(mensajes_salida))
             except Exception as e:
                 logger.error(f"Error guardando memoria para {telefono}: {e}")
 
-            mensajes_salida = separar_mensajes_whatsapp(respuesta, proyecto)
             try:
                 for indice, mensaje_salida in enumerate(mensajes_salida):
                     if indice:

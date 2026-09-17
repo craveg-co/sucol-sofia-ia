@@ -816,8 +816,13 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
         "\n\n## REGLAS DE COMPORTAMIENTO — PRIORIDAD MÁXIMA",
         "Estas reglas anulan cualquier instrucción anterior que las contradiga:",
         "",
-        "- LONGITUD: máximo 3 oraciones por mensaje. Esto es WhatsApp, no un email. "
-        "Si tu respuesta tiene más de 4 líneas, córtala.",
+        "- CONVERSACIÓN: responde a fondo el tema que el cliente preguntó, sin recortar "
+        "información importante por un límite fijo de oraciones. Trabaja un tema comercial "
+        "por turno, termina con UNA pregunta útil para perfilar o avanzar y espera la respuesta "
+        "del cliente antes de abrir otro tema.",
+        "- MENSAJES MÚLTIPLES: si separar ideas completas mejora la lectura, puedes usar una "
+        "línea con <PAUSA> entre mensajes. Úsala como máximo dos veces y nunca después de la "
+        "pregunta final. Si no hace falta, responde en un solo mensaje.",
         "- NO escales al asesor humano solo porque el cliente hizo una pregunta informativa. "
         "Respóndela tú directamente con la información de tu ficha.",
         "- PROACTIVIDAD: después de responder, invita de forma natural a un siguiente paso, "
@@ -1403,8 +1408,8 @@ _PATRON_PUNTUACION_FINAL = re.compile(r"[.!?…]['\"”)]*$")
 def _respuesta_es_incompleta(respuesta: str) -> bool:
     """Detecta respuestas cortadas a mitad de frase — no respuestas simplemente cortas.
 
-    El prompt le exige a Sofía ser breve (máximo 3 oraciones), así que una respuesta
-    corta pero bien puntuada es válida. Solo se marca como incompleta si termina en
+    Sofía puede responder con el detalle necesario, así que una respuesta corta pero
+    bien puntuada también es válida. Solo se marca como incompleta si termina en
     una palabra colgante (preposición/artículo) o, siendo muy corta, no cierra con
     puntuación final (señal de truncamiento real).
     """
@@ -1473,10 +1478,10 @@ def separar_mensajes_whatsapp(
     proyecto: dict | None = None,
 ) -> list[str]:
     """
-    Separa la información y la invitación final en dos mensajes de WhatsApp.
+    Devuelve los mensajes que Sofía decidió enviar en este turno.
 
-    Si el modelo no generó una pregunta final, agrega una CTA segura de acuerdo
-    con el protocolo del proyecto.
+    Por defecto se envía un solo mensaje y se espera la respuesta del cliente. El
+    modelo puede marcar pausas explícitas entre ideas completas con <PAUSA>.
     """
     texto = (respuesta or "").strip()
     if not texto:
@@ -1485,21 +1490,12 @@ def separar_mensajes_whatsapp(
     if texto in (_mensaje_error(), _mensaje_fallback()):
         return [texto]
 
-    inicio_pregunta = texto.rfind("¿")
-    if inicio_pregunta > 40:
-        informacion = texto[:inicio_pregunta].strip()
-        pregunta = texto[inicio_pregunta:].strip()
-        if informacion and pregunta:
-            return [informacion, pregunta]
-
-    slug = str((proyecto or {}).get("slug") or "").lower()
-    if slug == "cascata":
-        cta = "¿Quieres recibir más información o agendar primero el recorrido virtual 360°?"
-    else:
-        cta = (
-            "¿Qué te gustaría revisar ahora: áreas, precios o financiación?"
-        )
-    return [texto, cta]
+    mensajes = [
+        bloque.strip()
+        for bloque in re.split(r"\s*<PAUSA>\s*", texto, flags=re.IGNORECASE)
+        if bloque.strip()
+    ]
+    return mensajes[:3] or [texto]
 
 
 def _respuesta_operativa_visita(
