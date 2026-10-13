@@ -464,6 +464,8 @@ _FINANCIACION_ESTANDAR = {
 _FINANCIACION_PROYECTOS = {
     # Buenavista: 5% de separación + 15% de inicial hasta en 6 meses + 80% a 78 meses.
     "buenavista": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.15, "cuota_inicial_meses": 6, "saldo_meses": 78},
+    # Praderas de Guachinte: estándar (5% + 25% a 6 meses) pero con el saldo a 72 meses.
+    "praderas_guachinte": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.25, "cuota_inicial_meses": 6, "saldo_meses": 72},
     "reservas_ilama": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.15, "cuota_inicial_meses": 6, "saldo_meses": 24},
     "maloka_mallki": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.15, "cuota_inicial_meses": 2, "saldo_meses": 18},
     "cascata": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.10, "cuota_inicial_meses": 2, "saldo_meses": 36},
@@ -1230,19 +1232,25 @@ def _respuesta_cuota_buenavista(
 
 _BROCHURES_POR_SLUG = {
     "buenavista": "https://drive.google.com/file/d/1K-tjU8z0iJuFr-e9hCSPhcoJxcE5xmt0/view?usp=share_link",
+    "vientos_ginebra": "https://drive.google.com/file/d/19OKqC1txQhXk3BEanYG3HjJ_LC-GUL9K/view?usp=share_link",
     "vientos_de_ginebra": "https://drive.google.com/file/d/19OKqC1txQhXk3BEanYG3HjJ_LC-GUL9K/view?usp=share_link",
     "vientos-de-ginebra": "https://drive.google.com/file/d/19OKqC1txQhXk3BEanYG3HjJ_LC-GUL9K/view?usp=share_link",
     "bora": "https://drive.google.com/file/d/12PU5oGhKcxSK1rVag4CrMbQs34cAxW0C/view?usp=share_link",
+    # Cascata no usa PDF: el guion comercial comparte el recorrido virtual 360°.
+    "cascata": "https://cascata360.sucol.co",
+    "reservas_ilama": "https://drive.google.com/file/d/1VQgZ5CDTt4zsonxhsl_hqI063dwsZP4k/view?usp=share_link",
     "reservas_de_ilama": "https://drive.google.com/file/d/1VQgZ5CDTt4zsonxhsl_hqI063dwsZP4k/view?usp=share_link",
     "reservas-de-ilama": "https://drive.google.com/file/d/1VQgZ5CDTt4zsonxhsl_hqI063dwsZP4k/view?usp=share_link",
     "maloka_mallki": "https://drive.google.com/file/d/1giN-M_VfjKi64U1XJbaqtk3I8HdCs_IB/view?usp=share_link",
     "maloka-mallki": "https://drive.google.com/file/d/1giN-M_VfjKi64U1XJbaqtk3I8HdCs_IB/view?usp=share_link",
+    "solares_cabuyal": "https://drive.google.com/file/d/1vr6BoXABZgt2IWXHSkHb-rvRwMmUZ3eA/view?usp=share_link",
     "solares_del_cabuyal": "https://drive.google.com/file/d/1vr6BoXABZgt2IWXHSkHb-rvRwMmUZ3eA/view?usp=share_link",
     "solares-del-cabuyal": "https://drive.google.com/file/d/1vr6BoXABZgt2IWXHSkHb-rvRwMmUZ3eA/view?usp=share_link",
     "santa_elena": "https://drive.google.com/file/d/1poayGpz8G9jpnul0625nCjE2OUTHXVN1/view?usp=share_link",
     "santa-elena": "https://drive.google.com/file/d/1poayGpz8G9jpnul0625nCjE2OUTHXVN1/view?usp=share_link",
     "forestal_garden": "https://drive.google.com/file/d/1-gPUj_xkOud7f9It9BaQHAjDMJPUklwz/view?usp=share_link",
     "forestal-garden": "https://drive.google.com/file/d/1-gPUj_xkOud7f9It9BaQHAjDMJPUklwz/view?usp=share_link",
+    "praderas_guachinte": "https://drive.google.com/file/d/1qNoawlq0wE3vSPJZmEbNtpQEU-gsKjaI/view?usp=share_link",
     "praderas_de_guachinte": "https://drive.google.com/file/d/1qNoawlq0wE3vSPJZmEbNtpQEU-gsKjaI/view?usp=share_link",
     "praderas-de-guachinte": "https://drive.google.com/file/d/1qNoawlq0wE3vSPJZmEbNtpQEU-gsKjaI/view?usp=share_link",
 }

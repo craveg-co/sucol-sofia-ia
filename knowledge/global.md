@@ -37,7 +37,7 @@ Grupo Empresarial SUCOL: SAUCES Ingeniería (diseño y obra civil) · SERCAPITAL
 
 ## FINANCIACIÓN ESTÁNDAR SUCOL
 
-Aplica a: Santa Elena · Praderas de Guachinte · Buenavista · Bora · Solares del Cabuyal · Vientos de Ginebra.
+Aplica a: Santa Elena · Buenavista · Bora · Solares del Cabuyal · Vientos de Ginebra (cada proyecto puede tener su propia estructura en su ficha, que prevalece sobre esta).
 
 - **Separación:** 5% del valor total
 - **Cuota inicial:** 25% diferida en hasta 6 cuotas mensuales sin intereses
@@ -45,6 +45,7 @@ Aplica a: Santa Elena · Praderas de Guachinte · Buenavista · Bora · Solares 
 - **Pago de contado:** descuento especial disponible
 
 **Estructuras propias (excepciones):**
+- Praderas de Guachinte: 5% sep + 25% CI en 6 cuotas sin intereses + saldo hasta 72 meses con SERCAPITAL
 - Reservas de Ilama: 5% sep + 15% CI + saldo hasta 24 meses
 - Maloka Mallkí: 5% sep + 15% CI en 2 meses + saldo hasta 18 meses (o SERCAPITAL hasta 40)
 - Cascata: 5% sep + 10% CI en 2 meses + 75% a 36 meses sin intereses (Etapa 1) o 48 meses (Etapa 2)

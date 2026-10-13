@@ -25,6 +25,7 @@ from agent.brain import (
     _resumen_lead_para_asesor,
     _respuesta_operativa_visita,
     _sanitizar_historial,
+    _url_brochure_proyecto,
     _validar_respuesta_oficial,
     separar_mensajes_whatsapp,
 )
@@ -39,6 +40,26 @@ PROYECTO = {
 
 
 class DatosOficialesTest(unittest.TestCase):
+    def test_praderas_guachinte_financia_el_saldo_a_72_meses(self):
+        estructura = _estructura_financiacion({"slug": "praderas_guachinte"})
+
+        self.assertEqual(estructura["cuota_inicial_pct"], 0.25)
+        self.assertEqual(estructura["cuota_inicial_meses"], 6)
+        self.assertEqual(estructura["saldo_meses"], 72)
+
+    def test_brochure_existe_para_los_slugs_reales_del_crm(self):
+        # Slugs tal como están en la tabla proyectos del CRM.
+        for slug in (
+            "bora", "buenavista", "maloka_mallki", "praderas_guachinte",
+            "reservas_ilama", "santa_elena", "solares_cabuyal", "vientos_ginebra",
+            "forestal_garden", "cascata",
+        ):
+            with self.subTest(slug=slug):
+                self.assertTrue(
+                    _url_brochure_proyecto({"slug": slug}).startswith("https://"),
+                    f"Sin brochure para el slug {slug}",
+                )
+
     def test_buenavista_responde_cuota_con_ejemplo_aprobado(self):
         respuesta = _respuesta_cuota_buenavista(
             "Más o menos cuánto me quedaría la cuota",
