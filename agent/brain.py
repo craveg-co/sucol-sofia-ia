@@ -941,10 +941,10 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
                 "descuento. Nunca digas 25% de inicial ni 60, 70 u 84 meses para Buenavista."
             )
             lineas.append(
-                "- SERCAPITAL BUENAVISTA: es la aliada financiera. No calcules ni des cuotas "
-                "mensuales, intereses, seguros ni valores aproximados del crédito, porque esos "
-                "se definen en la cotización oficial de SERCAPITAL. Solo informa los porcentajes "
-                "y plazos autorizados; si piden una cuota, ofrece solicitar la cotización oficial."
+                "- SIMULACIÓN BUENAVISTA: si preguntan cuánto quedaría la cuota, usa únicamente "
+                "el ejemplo aproximado aprobado para el lote de 500 m² y $79.500.000 incluido "
+                "en la ficha. Aclara que puede cambiar por intereses, seguros, condiciones vigentes "
+                "y evaluación de SERCAPITAL. No calcules ni extrapoles cuotas para otros valores."
             )
         direccion = proyecto.get("direccion_visita")
         maps_url = proyecto.get("google_maps_url")
@@ -1192,6 +1192,41 @@ _PATRON_OTRO_TEMA_COMERCIAL = re.compile(
     r"cu[aá]nto\s+(?:cuesta|vale)|costo|financiaci[oó]n|cuota)\b",
     re.IGNORECASE,
 )
+
+_PATRON_CUOTA_APROXIMADA = re.compile(
+    r"\b(cu[aá]nto\s+(?:me\s+)?(?:queda|quedar[ií]a|pagar[ií]a)|"
+    r"cuota\s+(?:mensual|aproximada)|mensualidad|simulaci[oó]n|"
+    r"ejemplo\s+de\s+financiaci[oó]n|m[aá]s\s+o\s+menos.*cuota)\b",
+    re.IGNORECASE,
+)
+
+
+def _respuesta_cuota_buenavista(
+    mensaje: str,
+    proyecto: dict | None,
+) -> str | None:
+    """Entrega únicamente la simulación comercial aprobada para Buenavista."""
+    slug = str((proyecto or {}).get("slug") or "").strip().lower()
+    if slug != "buenavista" or not _PATRON_CUOTA_APROXIMADA.search(mensaje or ""):
+        return None
+
+    return (
+        "💳 *Ejemplo aproximado de financiación – lote de 500 m²*\n\n"
+        "Valor del lote: *$79.500.000*\n\n"
+        "🔹 *Separación – 5%: $3.975.000*\n"
+        "Se puede pagar en un plazo de 30 días.\n\n"
+        "🔹 *Cuota inicial – 15%: $11.925.000*\n"
+        "Se puede pagar en 6 meses sin intereses, más el seguro correspondiente.\n\n"
+        "🔹 Seguro aproximado: *$14.350*\n\n"
+        "🔹 Estudio de crédito: *$80.000*\n"
+        "Dividido en 6 meses, equivale aproximadamente a $13.333 mensuales.\n\n"
+        "🔹 Valor a financiar con SERCAPITAL – 80%: *$63.600.000*\n"
+        "🔹 Plazo de financiación: *78 meses*\n"
+        "🔹 Cuota mensual aproximada: *$1.496.005*\n\n"
+        "Estos valores son aproximados y pueden cambiar según las condiciones vigentes, "
+        "intereses, seguros y la evaluación de SERCAPITAL. "
+        "¿Esta cuota aproximada se ajusta a tu presupuesto mensual?"
+    )
 
 _BROCHURES_POR_SLUG = {
     "buenavista": "https://drive.google.com/file/d/1K-tjU8z0iJuFr-e9hCSPhcoJxcE5xmt0/view?usp=share_link",
@@ -2263,6 +2298,10 @@ async def generar_respuesta_con_tools(
     if not proyecto:
         return _respuesta_sin_proyecto(mensaje)
 
+    respuesta_cuota = _respuesta_cuota_buenavista(mensaje, proyecto)
+    if respuesta_cuota:
+        return respuesta_cuota
+
     respuesta_info = _respuesta_solicitud_info_proyecto(
         mensaje,
         proyecto,
@@ -2496,6 +2535,10 @@ async def generar_respuesta(
 
     if not proyecto:
         return _respuesta_sin_proyecto(mensaje)
+
+    respuesta_cuota = _respuesta_cuota_buenavista(mensaje, proyecto)
+    if respuesta_cuota:
+        return respuesta_cuota
 
     respuesta_info = _respuesta_solicitud_info_proyecto(
         mensaje,

@@ -15,6 +15,7 @@ from agent.brain import (
     _quitar_mencion_asesor_no_solicitada,
     _respuesta_rango_horario,
     _respuesta_cambio_interes,
+    _respuesta_cuota_buenavista,
     _respuesta_cierre_conversacion,
     _respuesta_recursos_proyecto,
     _respuesta_referencia_publicidad,
@@ -38,6 +39,26 @@ PROYECTO = {
 
 
 class DatosOficialesTest(unittest.TestCase):
+    def test_buenavista_responde_cuota_con_ejemplo_aprobado(self):
+        respuesta = _respuesta_cuota_buenavista(
+            "Más o menos cuánto me quedaría la cuota",
+            {"slug": "buenavista", "nombre": "Buenavista"},
+        )
+
+        self.assertIn("$1.496.005", respuesta)
+        self.assertIn("78 meses", respuesta)
+        self.assertIn("$14.350", respuesta)
+        self.assertIn("$80.000", respuesta)
+        self.assertIn("pueden cambiar", respuesta)
+
+    def test_ejemplo_de_cuota_buenavista_no_aplica_a_otro_proyecto(self):
+        respuesta = _respuesta_cuota_buenavista(
+            "Cuánto me quedaría la cuota mensual",
+            {"slug": "bora", "nombre": "Bora"},
+        )
+
+        self.assertIsNone(respuesta)
+
     def test_buenavista_usa_estructura_de_pago_exclusiva(self):
         estructura = _estructura_financiacion({"slug": "buenavista"})
 
