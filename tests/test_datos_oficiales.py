@@ -75,6 +75,19 @@ class ListadoProyectosTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("• Bora", respuesta)
         self.assertNotIn("qué proyecto o zona", respuesta.lower())
 
+    async def test_detecta_frase_exacta_dame_el_listado_de_los_proyectos(self):
+        with patch(
+            "agent.crm.obtener_proyectos_activos",
+            AsyncMock(return_value=[{"slug": "cascata", "nombre": "Cascata"}]),
+        ):
+            respuesta = await generar_respuesta_con_tools(
+                mensaje="Dame el listado de los proyectos",
+                historial=[],
+                proyecto={"slug": "buenavista", "nombre": "Buenavista"},
+            )
+
+        self.assertIn("• Cascata", respuesta)
+
     async def test_reintenta_listado_si_el_cliente_dice_que_no_recibio_nombres(self):
         historial = [
             {"role": "user", "content": "lístame los proyectos"},
@@ -613,6 +626,21 @@ class DatosOficialesTest(unittest.TestCase):
         )
 
         self.assertIn("Santa Elena tiene opciones disponibles", limpia)
+
+    def test_asesor_de_una_palabra_no_borra_proyecto_homonimo(self):
+        respuesta = (
+            "Estos son los proyectos activos:\n\n"
+            "• Buenavista\n• Cascata\n• Bora\n\n"
+            "¿Cuál te llama la atención?"
+        )
+
+        limpia = _quitar_mencion_asesor_no_solicitada(
+            respuesta,
+            "Dame el listado de los proyectos",
+            {"nombre": "Cascata", "telefono": "+573015576910"},
+        )
+
+        self.assertEqual(limpia, respuesta)
         self.assertNotIn("Juliana", limpia)
         self.assertNotIn("3170402005", limpia)
         self.assertNotIn("asesora", limpia.lower())

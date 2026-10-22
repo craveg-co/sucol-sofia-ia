@@ -1355,6 +1355,9 @@ def _quitar_mencion_asesor_no_solicitada(
         return respuesta
 
     nombre = str((asesor or {}).get("nombre") or "").strip()
+    # Una sola palabra puede ser un proyecto o una etiqueta del CRM
+    # (por ejemplo, "Cascata"), no necesariamente el nombre de una persona.
+    nombre_persona = nombre if len(nombre.split()) >= 2 else ""
     telefono = re.sub(r"\D", "", str((asesor or {}).get("telefono") or ""))
     bloques = re.split(r"\n\s*\n", respuesta or "")
     limpios = []
@@ -1362,7 +1365,7 @@ def _quitar_mencion_asesor_no_solicitada(
     for bloque in bloques:
         bloque_digitos = re.sub(r"\D", "", bloque)
         menciona_datos = bool(
-            (nombre and nombre.lower() in bloque.lower())
+            (nombre_persona and nombre_persona.lower() in bloque.lower())
             or (telefono and telefono in bloque_digitos)
             or _PATRON_MENCION_ASESOR.search(bloque)
         )
@@ -1997,6 +2000,8 @@ _PATRON_LISTADO_PROYECTOS = re.compile(
     r"\b(?:qu[eé]\s+|cu[aá]les\s+)?proyectos?\s+(?:tienen|tienes|hay|manejan|ofrecen|"
     r"est[aá]n\s+disponibles|est[aá]n\s+activos)\b|"
     r"\b(?:l[ií]sta(?:me)?|enumera(?:me)?|muestra(?:me)?|dime)\b.{0,35}\bproyectos?\b|"
+    r"\b(?:dame|env[ií]ame|muestra(?:me)?)\s+(?:el\s+)?listado\s+de\s+(?:los\s+)?proyectos?\b|"
+    r"\blistado\s+de\s+(?:los\s+)?proyectos?\b|"
     r"\bportafolio\s+de\s+proyectos?\b",
     re.IGNORECASE,
 )
