@@ -1,8 +1,10 @@
 import unittest
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 from agent.brain import (
     clasificar_descarte_sofia,
+    generar_respuesta_con_tools,
     _cargar_knowledge,
     _corregir_disponibilidad,
     _construir_contexto_crm,
@@ -24,6 +26,7 @@ from agent.brain import (
     _resumen_cita_oficial,
     _resumen_lead_para_asesor,
     _respuesta_operativa_visita,
+    _respuesta_listado_proyectos,
     _sanitizar_historial,
     _url_brochure_proyecto,
     _validar_respuesta_oficial,
@@ -37,6 +40,66 @@ PROYECTO = {
     "direccion_visita": "Cra. 10 # 1-1 Villas del Parque Local 1",
     "google_maps_url": "https://maps.app.goo.gl/9tWjSGv824huNMoQA",
 }
+
+
+class ListadoProyectosTest(unittest.IsolatedAsyncioTestCase):
+    async def test_lista_proyectos_activos_del_crm_sin_usar_el_modelo(self):
+        proyectos = [
+            {"slug": "bora", "nombre": "Bora"},
+            {"slug": "santa_elena", "nombre": "Santa Elena"},
+            {"slug": "buenavista", "nombre": "Buenavista"},
+        ]
+        with patch(
+            "agent.crm.obtener_proyectos_activos",
+            AsyncMock(return_value=proyectos),
+        ):
+            respuesta = await _respuesta_listado_proyectos(
+                "Dime qué proyectos tienes disponibles?"
+            )
+
+        self.assertIn("• Bora", respuesta)
+        self.assertIn("• Santa Elena", respuesta)
+        self.assertIn("• Buenavista", respuesta)
+
+    async def test_flujo_principal_lista_aunque_el_contacto_no_tenga_proyecto(self):
+        with patch(
+            "agent.crm.obtener_proyectos_activos",
+            AsyncMock(return_value=[{"slug": "bora", "nombre": "Bora"}]),
+        ):
+            respuesta = await generar_respuesta_con_tools(
+                mensaje="Lístame los proyectos",
+                historial=[],
+                proyecto=None,
+            )
+
+        self.assertIn("• Bora", respuesta)
+        self.assertNotIn("qué proyecto o zona", respuesta.lower())
+
+    async def test_reintenta_listado_si_el_cliente_dice_que_no_recibio_nombres(self):
+        historial = [
+            {"role": "user", "content": "lístame los proyectos"},
+            {
+                "role": "assistant",
+                "content": "Estos son los proyectos activos de SUCOL: ¿Cuál te interesa?",
+            },
+        ]
+        with patch(
+            "agent.crm.obtener_proyectos_activos",
+            AsyncMock(return_value=[{"slug": "bora", "nombre": "Bora"}]),
+        ):
+            respuesta = await _respuesta_listado_proyectos(
+                "no me has dicho ninguno",
+                historial,
+            )
+
+        self.assertIn("• Bora", respuesta)
+
+    async def test_no_intercepta_una_pregunta_ajena_al_portafolio(self):
+        respuesta = await _respuesta_listado_proyectos(
+            "¿Cuánto cuesta un lote en Santa Elena?"
+        )
+
+        self.assertIsNone(respuesta)
 
 
 class DatosOficialesTest(unittest.TestCase):

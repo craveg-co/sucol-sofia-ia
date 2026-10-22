@@ -1993,6 +1993,72 @@ _PATRON_INTENCION_CITA = re.compile(
     re.IGNORECASE,
 )
 
+_PATRON_LISTADO_PROYECTOS = re.compile(
+    r"\b(?:qu[eé]\s+|cu[aá]les\s+)?proyectos?\s+(?:tienen|tienes|hay|manejan|ofrecen|"
+    r"est[aá]n\s+disponibles|est[aá]n\s+activos)\b|"
+    r"\b(?:l[ií]sta(?:me)?|enumera(?:me)?|muestra(?:me)?|dime)\b.{0,35}\bproyectos?\b|"
+    r"\bportafolio\s+de\s+proyectos?\b",
+    re.IGNORECASE,
+)
+
+_PATRON_RECLAMO_LISTADO_VACIO = re.compile(
+    r"\b(?:no\s+me\s+has\s+dicho\s+ninguno|no\s+(?:me\s+)?(?:dijiste|mencionaste|"
+    r"listaste)\s+(?:ning[uú]n\s+)?proyecto|cu[aá]les\s+son)\b",
+    re.IGNORECASE,
+)
+
+
+def _es_solicitud_listado_proyectos(
+    mensaje: str,
+    historial: list[dict] | None = None,
+) -> bool:
+    """Detecta solicitudes de portafolio y reclamos tras un listado vacío."""
+    if _PATRON_LISTADO_PROYECTOS.search(mensaje or ""):
+        return True
+    if not _PATRON_RECLAMO_LISTADO_VACIO.search(mensaje or ""):
+        return False
+
+    contexto_reciente = " ".join(
+        str(item.get("content") or "")
+        for item in (historial or [])[-4:]
+    )
+    return bool(re.search(r"\bproyectos?\b", contexto_reciente, re.IGNORECASE))
+
+
+async def _respuesta_listado_proyectos(
+    mensaje: str,
+    historial: list[dict] | None = None,
+) -> str | None:
+    """Lista el portafolio activo desde el CRM sin delegarlo al modelo."""
+    if not _es_solicitud_listado_proyectos(mensaje, historial):
+        return None
+
+    # Import local para mantener brain desacoplado durante la carga del módulo.
+    from agent.crm import obtener_proyectos_activos
+
+    proyectos = await obtener_proyectos_activos()
+    nombres = []
+    vistos = set()
+    for proyecto in proyectos:
+        nombre = str(proyecto.get("nombre") or proyecto.get("slug") or "").strip()
+        clave = _normalizar_texto(nombre)
+        if nombre and clave not in vistos:
+            nombres.append(nombre)
+            vistos.add(clave)
+
+    if not nombres:
+        return (
+            "No pude consultar el portafolio activo en este momento. "
+            "Puedo confirmarlo con el equipo de SUCOL."
+        )
+
+    listado = "\n".join(f"• {nombre}" for nombre in nombres)
+    return (
+        f"Estos son los proyectos activos de SUCOL:\n\n{listado}\n\n"
+        "¿Cuál te interesa conocer?"
+    )
+
+
 _PATRON_RANGO_HORARIO = re.compile(
     r"\bentre\s+(?:las\s+)?\d{1,2}(?::\d{2})?\s*(?:a\.?\s*m\.?|p\.?\s*m\.?)?"
     r"\s+(?:y|a|hasta)\s+(?:las\s+)?\d{1,2}(?::\d{2})?\s*(?:a\.?\s*m\.?|p\.?\s*m\.?)?\b",
@@ -2289,19 +2355,16 @@ async def generar_respuesta_con_tools(
     + knowledge/proyectos/[proyecto_slug].md (si se conoce el proyecto).
     Retorna solo el texto de respuesta para el cliente.
     """
-    from agent.tools import (
-        confirmar_cita,
-        escalar_a_asesor,
-        notificar_area_por_correo,
-        calificar_lead_sin_visita,
-        consultar_asesor_por_nombre,
-    )  # import local para evitar ciclos
-
     # Señal especial: el CRM solicita el primer mensaje proactivo
     es_inicio = mensaje == "__INICIAR__"
 
     if not es_inicio and (not mensaje or len(mensaje.strip()) < 2):
         return _mensaje_fallback()
+
+    if not es_inicio:
+        respuesta_portafolio = await _respuesta_listado_proyectos(mensaje, historial)
+        if respuesta_portafolio:
+            return respuesta_portafolio
 
     if not proyecto:
         return _respuesta_sin_proyecto(mensaje)
@@ -2341,6 +2404,14 @@ async def generar_respuesta_con_tools(
     respuesta_operativa = _respuesta_operativa_visita(mensaje, proyecto)
     if respuesta_operativa:
         return respuesta_operativa
+
+    from agent.tools import (
+        confirmar_cita,
+        escalar_a_asesor,
+        notificar_area_por_correo,
+        calificar_lead_sin_visita,
+        consultar_asesor_por_nombre,
+    )  # import local para evitar ciclos
 
     prompt_final = _construir_prompt_base(proyecto_slug, proyecto)
 
@@ -2540,6 +2611,10 @@ async def generar_respuesta(
     """
     if not mensaje or len(mensaje.strip()) < 2:
         return _mensaje_fallback()
+
+    respuesta_portafolio = await _respuesta_listado_proyectos(mensaje, historial)
+    if respuesta_portafolio:
+        return respuesta_portafolio
 
     if not proyecto:
         return _respuesta_sin_proyecto(mensaje)
