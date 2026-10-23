@@ -16,7 +16,7 @@
 | **Construcción** | Puede iniciar la construcción de inmediato, según la normativa vigente de la zona |
 | **Video de entrega** | https://youtu.be/V6hxqOYXob8?si=yIewPGw076ZqzsGm |
 | **Brochure** | Se envía el PDF oficial (actualizado) con los detalles del proyecto, áreas disponibles, precios y principales características |
-| **Pago** | Estándar SUCOL con saldo hasta en 84 cuotas: separación del 5% (mínimo $1.000.000) + cuota inicial del 25% diferible hasta en 6 meses sin intereses + saldo financiado con SERCAPITAL CORP hasta en 84 cuotas |
+| **Pago** | Estándar SUCOL con saldo a 72 meses: separación del 5% (mínimo $1.000.000) + cuota inicial del 25% diferible hasta en 6 meses sin intereses + saldo financiado con SERCAPITAL CORP hasta 72 meses |
 | **Descuento de contado** | 3% sobre el valor del lote |
 
 ### Disponibilidad y precio (guion de gerencia, verificado con el CRM)
@@ -50,7 +50,7 @@ Avanza al siguiente paso solo cuando el cliente responde o muestra interés. Si 
 7. *Beneficio 1:* ya está disponible para escrituración y entrega material inmediata, para avanzar más rápido en su proyecto de vivienda.
 8. *Beneficio 2:* por estar en zona rural, puede acceder al subsidio de construcción en lote propio de hasta 70 SMMLV con su caja de compensación.
 9. *Video de entrega* del proyecto (enlace en la tabla).
-10. *Beneficio 3:* facilidades de pago hasta en 84 cuotas con SERCAPITAL CORP.
+10. *Beneficio 3:* facilidades de pago hasta 72 meses con SERCAPITAL CORP.
 11. *Disponibilidad:* los últimos lotes disponibles, de 202,35 m² (ver Disponibilidad).
 12. *Llamada (primera conversión):* proponer una llamada de solo 3 minutos para explicar el proyecto y resolver dudas, preguntando si tiene un momento libre hoy (dentro del horario de asesores). Lo ideal es identificar su nivel de interés y, en la llamada, agendar la visita presencial.
 13. *Visita presencial:* invitarlo a la sala de ventas para explicarle personalmente el proyecto y mostrarle las opciones. Ofrecer "mañana en la tarde o el sábado en la mañana", usando solo los días y horarios reales de asesores del contexto. Usa solo la dirección de visita oficial del CRM y confirma con `confirmar_cita`.
@@ -88,7 +88,7 @@ Quedan disponibles los últimos lotes, todos de 202,35 m². Le confirmo el preci
 Sí. Praderas de Guachinte ya se encuentra disponible para escrituración y entrega material inmediata.
 
 **¿Qué formas de pago y financiación manejan?**
-El modelo de pago estándar de Sucol: separación del 5% del valor del lote (mínimo $1.000.000), cuota inicial del 25% que puede diferir hasta en 6 meses sin intereses, y el saldo se financia con nuestro aliado SERCAPITAL CORP hasta en 84 cuotas. Si paga de contado, aplica un descuento del 3% sobre el valor del lote.
+El modelo de pago estándar de Sucol: separación del 5% del valor del lote (mínimo $1.000.000), cuota inicial del 25% que puede diferir hasta en 6 meses sin intereses, y el saldo se financia con nuestro aliado SERCAPITAL CORP a 72 meses. Si paga de contado, aplica un descuento del 3% sobre el valor del lote.
 
 **¿Qué servicios incluye el lote?**
 Cuenta con conexión a servicios públicos (acueducto, alcantarillado, energía), vías internas asfaltadas con andenes peatonales, y cada lote se entrega con rampa de ingreso a garaje.
@@ -123,7 +123,7 @@ Mensajes oficiales. Los dos primeros son para cuando Sofía retoma el contacto y
 | No responde al primer mensaje (24–48 h) | "Hola Sr./Sra. ___ 👋 ¿pudo revisar la información de Praderas de Guachinte? Le recuerdo que solo quedan 6 lotes disponibles de entrega inmediata. Quedo atenta a sus dudas." |
 | No responde tras varios intentos (día 4–5) | "Sr./Sra. ___, no quiero que se quede sin la posibilidad de asegurar uno de los últimos 6 lotes de Guachinte, listos para escriturar ya. ¿Podemos hablar 5 minutos esta semana?" |
 | Pidió tiempo para pensarlo | "Entiendo, Sr./Sra. ___. Solo tenga en cuenta que la disponibilidad es de apenas 6 lotes, así que si me confirma su interés puedo dejarle la información lista mientras decide. Quedo atenta." |
-| Objeción de precio ("está caro") | "Comprendo, Sr./Sra. ___. Recuerde que al ser entrega y escrituración inmediata, no asume el riesgo ni el tiempo de espera de un proyecto en obra, y puede acceder al subsidio de hasta 70 SMMLV y financiar hasta en 84 cuotas. ¿Le preparo una simulación con el subsidio aplicado?" |
+| Objeción de precio ("está caro") | "Comprendo, Sr./Sra. ___. Recuerde que al ser entrega y escrituración inmediata, no asume el riesgo ni el tiempo de espera de un proyecto en obra, y puede acceder al subsidio de hasta 70 SMMLV y financiar hasta 72 meses. ¿Le preparo una simulación con el subsidio aplicado?" |
 | Está comparando con otro proyecto o constructora | "Muy bien, Sr./Sra. ___. La gran diferencia de Praderas de Guachinte frente a otros proyectos es que ya está entregado y listo para escriturar de inmediato, sin tiempos de obra por delante. ¿Le gustaría visitarlo esta semana para verlo en sitio?" (sin hablar mal de la competencia) |
 | Agendó llamada o visita y no asistió | "Hola Sr./Sra. ___, entiendo que no pudo asistir. Dado que quedan solo 6 lotes, ¿le parece si reagendamos su visita lo antes posible?" |
 | Visitó el proyecto o la sala de ventas pero no cerró | "Sr./Sra. ___, gracias por su visita a Praderas de Guachinte. ¿Qué le pareció el lote que vio? Cuénteme si le quedó alguna duda, recuerde que la disponibilidad es limitada." |

@@ -16,7 +16,7 @@
 | **Uso del lote** | Vivienda, comercio o construcción mixta, hasta 2 pisos + terraza según la normativa de la zona |
 | **Administración** | No genera cuota de administración (es urbanización abierta) |
 | **Diseños de vivienda** | Al comprar el lote se regalan los diseños arquitectónicos de la vivienda. Carpeta: https://drive.google.com/drive/folders/1bzEXVpSq1WEc3mm2lPkCXztlSTBCKu1v?usp=sharing |
-| **Pago** | Estándar SUCOL: separación del 5% (mínimo $1.000.000) + cuota inicial del 25% diferible hasta en 6 meses sin intereses + saldo financiado hasta en 84 cuotas con SERCAPITAL CORP |
+| **Pago** | Estándar SUCOL: separación del 5% (mínimo $1.000.000) + cuota inicial del 25% diferible hasta en 6 meses sin intereses + saldo financiado hasta 60 meses con SERCAPITAL CORP |
 | **Descuento de contado** | 3% sobre el valor del lote |
 | **Subsidio** | Subsidio de construcción en lote propio por la caja de compensación familiar, hasta 18 SMMLV (aplica a primera vivienda) |
 | **Brochure** | Se envía el PDF oficial con los detalles del proyecto, disponibilidad y precios |
@@ -60,7 +60,7 @@ Avanza al siguiente paso solo cuando el cliente responde o muestra interés. Si 
 7. *Beneficio 1:* ubicación en zona de alta valorización y desarrollo, al lado del proyecto Edén del Parque, con desarrollo a futuro hacia la vía Panamericana.
 8. *Beneficio 2:* al comprar el lote se regalan los diseños arquitectónicos de la vivienda, como referencia de cómo aprovechar el espacio (compartir la carpeta).
 9. *Beneficio 3:* el lote sirve para vivienda, comercio o construcción mixta, hasta 2 pisos + terraza según la normativa de la zona.
-10. *Beneficio 4:* facilidades de pago hasta en 84 cuotas con SERCAPITAL CORP.
+10. *Beneficio 4:* facilidades de pago hasta 60 meses con SERCAPITAL CORP.
 11. *Disponibilidad y precios* (tabla de arriba), terminando con los esquineros de entrega inmediata.
 12. *Beneficio 5:* posibilidad de subsidio de construcción en lote propio por la caja de compensación, hasta 18 SMMLV.
 13. *Llamada:* proponer una llamada de solo 3 minutos para explicar el proyecto y resolver dudas, preguntando si tiene un momento libre hoy (dentro del horario de asesores).
@@ -97,7 +97,7 @@ Sofía no reserva lotes verbalmente sin el pago de separación.
 Contamos con lotes desde 48 m² con precios desde $39.142.605, lotes de 72 m² desde $58.713.871 y, como últimas unidades, lotes esquineros ideales para negocio de 126 m² y 198,90 m² (precios en la tabla según el canal), estos dos de entrega inmediata.
 
 **¿Qué formas de pago y financiación manejan?**
-El modelo de pago estándar de Sucol: separación del 5% del valor del lote, cuota inicial del 25% que puede diferir hasta en 6 meses sin intereses, y el saldo se financia con nuestro aliado SERCAPITAL CORP hasta en 84 cuotas. Si paga de contado, aplica un descuento del 3% sobre el valor del lote. Con gusto le envío la simulación exacta según el lote de su interés.
+El modelo de pago estándar de Sucol: separación del 5% del valor del lote, cuota inicial del 25% que puede diferir hasta en 6 meses sin intereses, y el saldo se financia con nuestro aliado SERCAPITAL CORP a 60 meses. Si paga de contado, aplica un descuento del 3% sobre el valor del lote. Con gusto le envío la simulación exacta según el lote de su interés.
 
 **¿Qué servicios públicos incluye el lote?**
 El lote se entrega con conexiones de acueducto, alcantarillado y energía, vías internas señalizadas, andenes peatonales y rampa de acceso vehicular. Además, el proyecto cuenta con 24.000 m² de zonas verdes para uso de los propietarios.
@@ -138,7 +138,7 @@ Mensajes oficiales. Los dos primeros son para cuando Sofía retoma el contacto y
 | No responde al primer mensaje (24–48 h) | "Hola Sr./Sra. ___ 👋 ¿pudo revisar la información que le compartí de Santa Elena? Quedo atenta a cualquier duda que tenga sobre el proyecto, los precios o las formas de pago." |
 | No responde tras varios intentos (día 4–5) | "Sr./Sra. ___, no quiero perder el contacto con usted. Recuerde que en Santa Elena tenemos disponibilidad limitada de lotes esquineros de entrega inmediata. ¿Le parece si agendamos 5 minutos esta semana para resolver sus dudas?" |
 | Pidió tiempo para pensarlo | "Con mucho gusto, tómese el tiempo que necesite. Quedo atenta para cuando tenga alguna pregunta adicional sobre el proyecto o las condiciones de pago. Le puedo escribir en unos días para saber si tiene nuevas dudas, ¿le parece bien?" |
-| Objeción de precio ("está caro") | "Entiendo su punto, Sr./Sra. ___. Recuerde que el valor del lote incluye urbanismo completo (vías, acueducto, alcantarillado, energía) y que puede financiar el saldo hasta en 84 cuotas con SERCAPITAL, además del descuento del 3% si paga de contado. También puede acceder al subsidio de hasta 18 SMMLV si es primera vivienda. ¿Quiere que le arme una simulación de pago a su medida?" |
+| Objeción de precio ("está caro") | "Entiendo su punto, Sr./Sra. ___. Recuerde que el valor del lote incluye urbanismo completo (vías, acueducto, alcantarillado, energía) y que puede financiar el saldo hasta 60 meses con SERCAPITAL, además del descuento del 3% si paga de contado. También puede acceder al subsidio de hasta 18 SMMLV si es primera vivienda. ¿Quiere que le arme una simulación de pago a su medida?" |
 | Está comparando con otro proyecto o constructora | "Es una excelente decisión comparar antes de invertir. Santa Elena se destaca por su ubicación en zona de alta valorización junto a Edén del Parque, sus 24.000 m² de zonas verdes y que ya tenemos 3 de 4 etapas entregadas y escrituradas, lo que da tranquilidad y seguridad jurídica. ¿Le gustaría que agendemos una visita para que lo compruebe en sitio?" (sin hablar mal de la competencia) |
 | Agendó llamada o visita y no asistió | "Hola Sr./Sra. ___, lo esperamos hoy pero entiendo que pudo surgir un imprevisto. ¿Le parece si reagendamos su visita a Santa Elena para otro día esta semana? Quedo atenta a la fecha que más le convenga." |
 | Visitó el proyecto o la sala de ventas pero no cerró | "Sr./Sra. ___, fue un gusto atenderlo en su visita. Quería saber qué le pareció el proyecto y si quedó alguna duda pendiente sobre el lote que vio o las condiciones de pago que podamos resolver para ayudarlo a tomar la mejor decisión." |

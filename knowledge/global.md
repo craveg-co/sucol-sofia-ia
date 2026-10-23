@@ -41,16 +41,16 @@ Aplica a: Santa Elena · Buenavista · Bora · Solares del Cabuyal · Vientos de
 
 - **Separación:** 5% del valor total
 - **Cuota inicial:** 25% diferida en hasta 6 cuotas mensuales sin intereses
-- **Saldo:** financiado hasta en 84 cuotas con SERCAPITAL CORP. Sofía no calcula la cuota mensual porque incluye intereses, seguros, condiciones vigentes y evaluación.
+- **Saldo:** 70% financiado hasta 60 meses con SERCAPITAL CORP (sin banco, sin papeleo excesivo)
 - **Pago de contado:** descuento especial disponible
 
 **Estructuras propias (excepciones):**
-- Praderas de Guachinte: 5% sep + 25% CI en 6 cuotas sin intereses + saldo hasta en 84 cuotas con SERCAPITAL
+- Praderas de Guachinte: 5% sep + 25% CI en 6 cuotas sin intereses + saldo hasta 72 meses con SERCAPITAL
 - Reservas de Ilama: 5% sep + 15% CI + saldo hasta 24 meses
-- Maloka Mallkí: 5% sep + 15% CI en 2 meses + saldo hasta 18 meses directo con SUCOL; alternativa SERCAPITAL hasta en 84 cuotas
+- Maloka Mallkí: 5% sep + 15% CI en 2 meses + saldo hasta 18 meses (o SERCAPITAL hasta 40)
 - Cascata: 5% sep + 10% CI en 2 meses + 75% a 36 meses sin intereses (Etapa 1) o 48 meses (Etapa 2)
 
-**Simulación de cuotas:** Sofía usa los cálculos precargados para separación y cuota inicial. En proyectos con SERCAPITAL nunca calcula la cuota mensual del saldo: solo informa que puede financiarse hasta en 84 cuotas y que el valor depende de intereses, seguros, condiciones vigentes y evaluación. Cascata y Reservas de Ilama conservan sus esquemas directos registrados.
+**Simulación de cuotas:** Sofía NUNCA calcula separación/cuota inicial/saldo mensual mentalmente. El contexto de lotes que recibe ya trae una "Simulación estándar" precalculada por precio — debe usar esas cifras tal cual. Si el precio exacto que pide el cliente no tiene simulación en el contexto, responde que no tiene esa cifra exacta y que la confirma con el equipo de SUCOL.
 
 ---
 

@@ -14,7 +14,7 @@
 | **Servicios** | Se entregará con conexiones de acueducto, alcantarillado y energía, vías internas señalizadas, andenes peatonales y rampas de ingreso a garaje para cada lote |
 | **Uso del lote** | Vivienda, negocio o ambos combinados en un mismo lote |
 | **Diseños de vivienda** | Se entregan los diseños de la vivienda tipo de 48 m² como referencia de distribución según la normativa. Carpeta: https://drive.google.com/drive/folders/1Twslwu9whcSsaZf-NHtIvJavq4gaWJ72?usp=sharing |
-| **Pago** | Estándar SUCOL: separación del 5% (mínimo $1.000.000) + cuota inicial del 25% diferible hasta en 6 meses sin intereses + saldo financiado hasta en 84 cuotas con SERCAPITAL CORP |
+| **Pago** | Estándar SUCOL: separación del 5% (mínimo $1.000.000) + cuota inicial del 25% diferible hasta en 6 meses sin intereses + saldo financiado hasta 60 meses con SERCAPITAL CORP |
 | **Descuento de contado** | 3% sobre el valor del lote |
 | **Brochure** | Se envía el PDF oficial con los detalles del proyecto, áreas, precios y ubicación |
 
@@ -51,7 +51,7 @@ Avanza al siguiente paso solo cuando el cliente responde o muestra interés. Si 
 5. *Brochure PDF* con el texto: "Aquí en el brochure explicamos los detalles del proyecto, áreas, precios y ubicación".
 6. *Beneficio 1:* al invertir sobre planos puede proyectar su inversión desde una etapa inicial y aprovechar la valorización por el desarrollo de la zona.
 7. *Beneficio 2:* flexibilidad para construir vivienda, negocio o combinar ambas en un mismo lote, más los diseños de la vivienda tipo de 48 m² (compartir la carpeta).
-8. *Beneficio 3:* facilidades de pago hasta en 84 cuotas con SERCAPITAL CORP.
+8. *Beneficio 3:* facilidades de pago hasta 60 meses con SERCAPITAL CORP.
 9. *Disponibilidad y precios* (arriba).
 10. *Llamada:* proponer una llamada de solo 3 minutos para explicar el proyecto y resolver dudas, preguntando si tiene un momento libre hoy (dentro del horario de asesores).
 11. *Visita presencial:* invitarlo a la sala de ventas para explicarle personalmente el proyecto y mostrarle las opciones. Ofrecer "mañana en la tarde o el sábado en la mañana", usando solo los días y horarios reales de asesores del contexto. Usa solo la dirección de visita oficial del CRM y confirma con `confirmar_cita`.
@@ -92,7 +92,7 @@ Comprar sobre planos le permite acceder a un menor precio de lanzamiento y proye
 El proyecto se entrega en 2 etapas: Etapa 1 en 2027 y Etapa 2 en 2028. (Pendiente de confirmar con gerencia.)
 
 **¿Qué formas de pago y financiación manejan?**
-El modelo de pago estándar de Sucol: separación del 5% del valor del lote (mínimo $1.000.000), cuota inicial del 25% que puede diferir hasta en 6 meses sin intereses, y el saldo se financia con nuestro aliado SERCAPITAL CORP hasta en 84 cuotas. Si paga de contado, aplica un descuento del 3% sobre el valor del lote.
+El modelo de pago estándar de Sucol: separación del 5% del valor del lote (mínimo $1.000.000), cuota inicial del 25% que puede diferir hasta en 6 meses sin intereses, y el saldo se financia con nuestro aliado SERCAPITAL CORP a 60 meses. Si paga de contado, aplica un descuento del 3% sobre el valor del lote.
 
 **¿Qué servicios incluye el lote?**
 Bora se entregará con conexiones de acueducto, alcantarillado y energía, vías internas señalizadas, andenes peatonales y rampa de ingreso a garaje para cada lote.
@@ -124,7 +124,7 @@ Mensajes oficiales. Los dos primeros son para cuando Sofía retoma el contacto y
 | No responde al primer mensaje (24–48 h) | "Hola Sr./Sra. ___ 👋 quería saber si pudo revisar la información de Bora que le envié. Estoy atenta a resolverle cualquier duda sobre precios, etapas o financiación." |
 | No responde tras varios intentos (día 4–5) | "Sr./Sra. ___, sé que puede estar ocupado(a). Le comento que en Bora, al comprar sobre planos, el precio de hoy es más bajo que el de etapas más avanzadas. ¿Tiene 5 minutos esta semana para una llamada corta?" |
 | Pidió tiempo para pensarlo | "Perfecto, tómese el tiempo necesario. Quedo atenta por si surge alguna pregunta sobre el proyecto, los diseños de vivienda o las opciones de financiación con SERCAPITAL." |
-| Objeción de precio ("está caro") | "Entiendo, Sr./Sra. ___. Vale la pena recordar que comprar sobre planos en Bora le da el precio más bajo de todo el proyecto, antes de que avance la obra y suba el valor por m². Además puede financiar hasta en 84 cuotas o acceder al precio de contado registrado. ¿Le muestro la separación y la cuota inicial?" |
+| Objeción de precio ("está caro") | "Entiendo, Sr./Sra. ___. Vale la pena recordar que comprar sobre planos en Bora le da el precio más bajo de todo el proyecto, antes de que avance la obra y suba el valor por m². Además puede financiar hasta 60 meses o acceder al 3% de descuento pagando de contado. ¿Le armo una simulación?" |
 | Está comparando con otro proyecto o constructora | "Claro que sí, es importante comparar. Bora se diferencia por su ubicación frente al Colegio Alas, la flexibilidad de uso mixto (vivienda + negocio) y el respaldo de Sucol con 17 proyectos urbanísticos en el Valle. ¿Le gustaría agendar una visita a la zona para conocer el desarrollo del sector?" (sin hablar mal de la competencia) |
 | Agendó llamada o visita y no asistió | "Hola Sr./Sra. ___, noté que no pudimos conectarnos en el horario acordado. ¿Le parece si buscamos una nueva fecha esta semana para explicarle el proyecto Bora con calma?" |
 | Visitó el proyecto o la sala de ventas pero no cerró | "Sr./Sra. ___, gracias por su visita. ¿Qué le pareció Bora? Quiero asegurarme de resolver cualquier duda que le haya quedado sobre el lote, las etapas de entrega o la forma de pago." |
@@ -139,7 +139,7 @@ Mensajes oficiales. Los dos primeros son para cuando Sofía retoma el contacto y
 
 ## Perfil del comprador ideal
 
-Familias jóvenes que buscan su primer lote; comerciantes que quieren local, bodega o uso mixto; inversionistas atraídos por el precio de lanzamiento. Motivación: doble uso (vivienda y negocio), infraestructura y financiación hasta en 84 cuotas.
+Familias jóvenes que buscan su primer lote; comerciantes que quieren local, bodega o uso mixto; inversionistas atraídos por el precio de lanzamiento. Motivación: doble uso (vivienda y negocio), infraestructura y cuotas a 60 meses.
 
 ## Manejo de objeciones adicionales
 
