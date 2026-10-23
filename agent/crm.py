@@ -722,24 +722,30 @@ async def obtener_agendamientos_lead(telefono: str) -> list[dict]:
 
 
 async def obtener_lotes_disponibles(proyecto_slug: str) -> list[dict]:
-    """Retorna lotes con estado='disponible' de un proyecto."""
+    """Retorna el inventario comercial disponible de un proyecto."""
     if not _crm_disponible():
         return []
     try:
         async with _crm_session() as session:
             result = await session.execute(
                 text("""
-                    SELECT l.codigo,
+                    SELECT COALESCE(
+                               NULLIF(TRIM(COALESCE(l.manzana, '') || COALESCE(l.numero, '')), ''),
+                               l.codigo
+                           ) AS codigo,
+                           l.codigo AS codigo_interno,
                            l.area_m2,
-                           COALESCE(l.precio_final, l.precio) AS precio_total,
+                           COALESCE(l.precio_contado, l.precio_final, l.precio) AS precio_total,
+                           l.precio_contado,
+                           l.precio_financiado,
                            l.valor_cuota_inicial AS cuota_inicial,
                            l.no_cuotas AS cuotas_cantidad,
                            l.valor_cuota AS cuota_valor,
                            l.estado
                     FROM lotes l
                     INNER JOIN proyectos p ON p.id = l.proyecto_id
-                    WHERE p.slug = :slug AND LOWER(l.estado) = 'disponible'
-                    ORDER BY l.codigo
+                    WHERE p.slug = :slug AND LOWER(TRIM(l.estado)) = 'disponible'
+                    ORDER BY l.manzana, l.numero, l.codigo
                 """),
                 {"slug": proyecto_slug},
             )

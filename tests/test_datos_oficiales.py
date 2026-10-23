@@ -27,6 +27,7 @@ from agent.brain import (
     _resumen_lead_para_asesor,
     _respuesta_operativa_visita,
     _respuesta_listado_proyectos,
+    _respuesta_precio_area_exacto,
     _sanitizar_historial,
     _url_brochure_proyecto,
     _validar_respuesta_oficial,
@@ -116,6 +117,42 @@ class ListadoProyectosTest(unittest.IsolatedAsyncioTestCase):
 
 
 class DatosOficialesTest(unittest.TestCase):
+    def test_precio_por_area_entrega_lote_comercial_y_valores_exactos(self):
+        respuesta = _respuesta_precio_area_exacto(
+            "Dame el precio de un lote de 72 m² en Santa Elena",
+            PROYECTO,
+            [
+                {
+                    "codigo": "C7",
+                    "codigo_interno": "2C1",
+                    "area_m2": 72,
+                    "precio_total": 55_918_008,
+                    "precio_financiado": 58_713_908,
+                },
+                {"codigo": "A20", "area_m2": 72, "precio_total": 55_917_972,
+                 "precio_financiado": 58_713_871},
+                {"codigo": "D3", "area_m2": 72, "precio_total": None},
+                {"codigo": "1A1", "area_m2": 90, "precio_total": 50_000_000},
+            ],
+        )
+
+        self.assertIn("A20", respuesta)
+        self.assertNotIn("2C1", respuesta)
+        self.assertIn("72 m²", respuesta)
+        self.assertIn("contado de *$55.917.972*", respuesta)
+        self.assertIn("financiado de *$58.713.871*", respuesta)
+        self.assertNotIn("rango", respuesta.lower())
+        self.assertNotIn("Sra./Sr.", respuesta)
+
+    def test_precio_por_area_acepta_m2_sin_superindice(self):
+        respuesta = _respuesta_precio_area_exacto(
+            "Cuánto vale uno de 72 m2",
+            PROYECTO,
+            [{"codigo": "C7", "area_m2": "72", "precio_total": 55_918_008}],
+        )
+
+        self.assertIn("$55.918.008", respuesta)
+
     def test_praderas_guachinte_financia_el_saldo_a_72_meses(self):
         estructura = _estructura_financiacion({"slug": "praderas_guachinte"})
 

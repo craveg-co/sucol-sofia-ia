@@ -1400,6 +1400,81 @@ def _corregir_disponibilidad(
     )
 
 
+_PATRON_INTENCION_PRECIO = re.compile(
+    r"\b(precio|valor|cu[aá]nto\s+(?:cuesta|vale)|qu[eé]\s+cuesta)\b",
+    re.IGNORECASE,
+)
+
+_PATRON_AREA_SOLICITADA = re.compile(
+    r"\b(\d{2,4}(?:[.,]\d{1,2})?)\s*(?:m2|m²|metros?\s+cuadrados?)\b",
+    re.IGNORECASE,
+)
+
+
+def _formatear_pesos_colombia(valor: object) -> str:
+    return "$" + f"{float(valor):,.0f}".replace(",", ".")
+
+
+def _respuesta_precio_area_exacto(
+    mensaje: str,
+    proyecto: dict | None,
+    lotes: list[dict],
+) -> str | None:
+    """Responde con una unidad real y su precio exacto cuando piden un área."""
+    if not proyecto or not lotes or not _PATRON_INTENCION_PRECIO.search(mensaje or ""):
+        return None
+
+    coincidencia_area = _PATRON_AREA_SOLICITADA.search(mensaje or "")
+    if not coincidencia_area:
+        return None
+
+    area_solicitada = float(coincidencia_area.group(1).replace(",", "."))
+    lotes_area = []
+    for lote in lotes:
+        try:
+            if abs(float(lote.get("area_m2")) - area_solicitada) < 0.01:
+                lotes_area.append(lote)
+        except (TypeError, ValueError):
+            continue
+
+    if not lotes_area:
+        return None
+
+    lotes_con_precio = [
+        lote for lote in lotes_area
+        if lote.get("precio_total") is not None
+    ]
+    nombre = str(proyecto.get("nombre") or "este proyecto").strip()
+    area_texto = f"{area_solicitada:g}"
+    if not lotes_con_precio:
+        return (
+            f"Tengo una opción disponible de *{area_texto} m²* en {nombre}, pero su precio "
+            "exacto aún no está registrado en el inventario. Puedo confirmarlo con el equipo de SUCOL."
+        )
+
+    lote_elegido = min(
+        lotes_con_precio,
+        key=lambda lote: (float(lote["precio_total"]), str(lote.get("codigo") or "")),
+    )
+    codigo = str(lote_elegido.get("codigo") or "").strip()
+    identificacion = f"el lote *{codigo}*" if codigo else "una opción disponible"
+    precio = _formatear_pesos_colombia(lote_elegido["precio_total"])
+    precio_financiado = lote_elegido.get("precio_financiado")
+    unidad = "eco-hábitat" if str(proyecto.get("slug") or "").lower() == "cascata" else "lote"
+
+    if precio_financiado is not None:
+        financiado = _formatear_pesos_colombia(precio_financiado)
+        detalle_precio = f"un precio de contado de *{precio}* y financiado de *{financiado}*"
+    else:
+        detalle_precio = f"un precio exacto de *{precio}*"
+
+    return (
+        f"🏡 En {nombre}, {identificacion} de *{area_texto} m²* tiene {detalle_precio}, "
+        "según el inventario actual. "
+        f"¿Quieres que te muestre la financiación para este {unidad}?"
+    )
+
+
 _PATRON_RESPUESTA_INCOMPLETA = re.compile(
     r"\b(para|sobre|del|de|el|la|los|las|proyecto|informaci[oó]n)\s*$",
     re.IGNORECASE,
@@ -2374,6 +2449,14 @@ async def generar_respuesta_con_tools(
     if not proyecto:
         return _respuesta_sin_proyecto(mensaje)
 
+    respuesta_precio = _respuesta_precio_area_exacto(
+        mensaje,
+        proyecto,
+        lotes_disponibles or [],
+    )
+    if respuesta_precio:
+        return respuesta_precio
+
     respuesta_cuota = _respuesta_cuota_buenavista(mensaje, proyecto)
     if respuesta_cuota:
         return respuesta_cuota
@@ -2623,6 +2706,14 @@ async def generar_respuesta(
 
     if not proyecto:
         return _respuesta_sin_proyecto(mensaje)
+
+    respuesta_precio = _respuesta_precio_area_exacto(
+        mensaje,
+        proyecto,
+        lotes_disponibles or [],
+    )
+    if respuesta_precio:
+        return respuesta_precio
 
     respuesta_cuota = _respuesta_cuota_buenavista(mensaje, proyecto)
     if respuesta_cuota:
