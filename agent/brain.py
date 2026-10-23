@@ -584,6 +584,11 @@ def _construir_contexto_crm(
             "Esta información es dinámica y prevalece sobre cantidades, áreas, precios "
             "y disponibilidad escritos en cualquier ficha estática."
         )
+        partes.append(
+            "REGLA DE PRECIOS: cuando el CRM registre precio de contado y precio financiado, "
+            "ambos son valores finales por modalidad. No calcules ni apliques un descuento "
+            "adicional sobre ninguno de ellos."
+        )
         partes.append(f"- Total de registros disponibles: {len(lotes)}")
 
         resumen_areas: dict[str, dict] = {}

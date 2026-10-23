@@ -219,6 +219,7 @@ class DatosOficialesTest(unittest.TestCase):
         self.assertIn("Precio financiado CRM: $58,713,871", contexto)
         self.assertIn("precio financiado $58,713,871", contexto)
         self.assertIn("separación $2,935,694", contexto)
+        self.assertIn("No calcules ni apliques un descuento adicional", contexto)
 
     def test_praderas_guachinte_financia_el_saldo_a_72_meses(self):
         estructura = _estructura_financiacion({"slug": "praderas_guachinte"})
