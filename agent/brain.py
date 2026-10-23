@@ -456,16 +456,13 @@ def _limpiar_prompt(prompt: str) -> str:
     return prompt
 
 
-# Estructura estándar SUCOL (5% sep + 25% CI a 6 meses + 70% a 60 meses).
+# Estructura estándar SUCOL (5% sep + 25% CI a 6 meses + saldo con SERCAPITAL).
 # Excepciones documentadas en knowledge/global.md — mismo slug que en proyectos.slug.
 _FINANCIACION_ESTANDAR = {
-    "separacion_pct": 0.05, "cuota_inicial_pct": 0.25, "cuota_inicial_meses": 6, "saldo_meses": 60,
+    "separacion_pct": 0.05, "cuota_inicial_pct": 0.25, "cuota_inicial_meses": 6, "saldo_meses": 84,
 }
 _FINANCIACION_PROYECTOS = {
-    # Buenavista: 5% de separación + 15% de inicial hasta en 6 meses + 80% a 78 meses.
-    "buenavista": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.15, "cuota_inicial_meses": 6, "saldo_meses": 78},
-    # Praderas de Guachinte: estándar (5% + 25% a 6 meses) pero con el saldo a 72 meses.
-    "praderas_guachinte": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.25, "cuota_inicial_meses": 6, "saldo_meses": 72},
+    "buenavista": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.15, "cuota_inicial_meses": 6, "saldo_meses": 84},
     "reservas_ilama": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.15, "cuota_inicial_meses": 6, "saldo_meses": 24},
     "maloka_mallki": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.15, "cuota_inicial_meses": 2, "saldo_meses": 18},
     "cascata": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.10, "cuota_inicial_meses": 2, "saldo_meses": 36},
@@ -473,6 +470,8 @@ _FINANCIACION_PROYECTOS = {
     # promotora (Promotora Vientos de Ginebra S.A.S.) — NO es SERCAPITAL.
     "vientos_ginebra": {"separacion_pct": 0.05, "cuota_inicial_pct": 0.20, "cuota_inicial_meses": 1, "saldo_meses": 36},
 }
+
+_PROYECTOS_FINANCIACION_DIRECTA = {"cascata", "reservas_ilama", "vientos_ginebra"}
 
 
 def _estructura_financiacion(proyecto: dict | None) -> dict:
@@ -642,7 +641,7 @@ def _construir_contexto_crm(
                     linea += f" | Rango CRM: ${minimo:,.0f} a ${maximo:,.0f}"
                 if not precios_financiados:
                     base_simulacion = minimo
-                if slug_proyecto != "buenavista":
+                if slug_proyecto in _PROYECTOS_FINANCIACION_DIRECTA:
                     sim = _simular_financiacion(base_simulacion, estructura_fin)
                     linea += (
                         f" | Simulación estándar sobre el precio financiado "
@@ -651,6 +650,18 @@ def _construir_contexto_crm(
                         f"cuota inicial ≈ ${sim['cuota_inicial_mensual']:,.0f}/mes "
                         f"x {sim['cuota_inicial_meses']} meses, "
                         f"saldo ≈ ${sim['saldo_mensual']:,.0f}/mes x {sim['saldo_meses']} meses"
+                    )
+                else:
+                    sim = _simular_financiacion(base_simulacion, estructura_fin)
+                    linea += (
+                        f" | Cálculo permitido sobre el precio financiado "
+                        f"${float(base_simulacion):,.0f}: "
+                        f"separación ${sim['separacion']:,.0f}, "
+                        f"cuota inicial ≈ ${sim['cuota_inicial_mensual']:,.0f}/mes "
+                        f"x {sim['cuota_inicial_meses']} meses. "
+                        "Saldo financiado hasta en 84 cuotas con SERCAPITAL; "
+                        "NO calcular una cuota mensual del saldo porque incluye intereses, "
+                        "seguros y condiciones de la evaluación."
                     )
             partes.append(linea)
         if len(grupos_ordenados) > 30:
@@ -919,6 +930,11 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
         "de la seccion de lotes del CRM. Si el lote o precio exacto que pide el cliente no "
         "tiene una simulacion en el contexto, di que no tienes esa cifra exacta y que la "
         "confirmas con el equipo de SUCOL — no inventes ni estimes el numero tu misma.",
+        "- SERCAPITAL: cuando el saldo de un proyecto se financie con SERCAPITAL, nunca "
+        "calcules ni muestres una cuota mensual para el saldo. Indica solamente que se puede financiar "
+        "hasta en 84 cuotas con SERCAPITAL y que el valor de cada cuota depende de intereses, "
+        "seguros, condiciones vigentes y evaluacion. Sí puedes mostrar la separacion y la "
+        "cuota inicial precalculadas en el contexto.",
         "- TAMAÑOS Y PRECIOS GENERALES: si el cliente pregunta por tamaños o precios sin pedir "
         "un lote exacto, y el CRM no trae lotes en tabla para este proyecto, usa los campos "
         "'Áreas' y 'Precios' de la ficha del proyecto (ej. 'desde 168 m² hasta 607 m²', "
@@ -965,14 +981,15 @@ def _reglas_finales(asesor: dict | None, proyecto: dict | None = None) -> str:
             lineas.append(
                 "- FINANCIACIÓN BUENAVISTA: esta condición anula la financiación global: "
                 "5% de separación, 15% de cuota inicial hasta en 6 meses sin intereses y "
-                "80% de saldo hasta en 78 meses con SERCAPITAL CORP. Pago de contado: 5% de "
-                "descuento. Nunca digas 25% de inicial ni 60, 70 u 84 meses para Buenavista."
+                "80% de saldo hasta en 84 cuotas con SERCAPITAL CORP. Pago de contado: 5% de "
+                "descuento. Nunca calcules una cuota mensual para ese saldo porque incluye "
+                "intereses, seguros y condiciones de la evaluación."
             )
             lineas.append(
                 "- SIMULACIÓN BUENAVISTA: si preguntan cuánto quedaría la cuota, usa únicamente "
-                "el ejemplo aproximado aprobado para el lote de 500 m² y $79.500.000 incluido "
-                "en la ficha. Aclara que puede cambiar por intereses, seguros, condiciones vigentes "
-                "y evaluación de SERCAPITAL. No calcules ni extrapoles cuotas para otros valores."
+                "el ejemplo aprobado para separación y cuota inicial del lote de 500 m² y "
+                "$79.500.000 incluido en la ficha. Para el saldo, menciona hasta 84 cuotas con "
+                "SERCAPITAL sin calcular la mensualidad."
             )
         direccion = proyecto.get("direccion_visita")
         maps_url = proyecto.get("google_maps_url")
@@ -1249,11 +1266,10 @@ def _respuesta_cuota_buenavista(
         "🔹 Estudio de crédito: *$80.000*\n"
         "Dividido en 6 meses, equivale aproximadamente a $13.333 mensuales.\n\n"
         "🔹 Valor a financiar con SERCAPITAL – 80%: *$63.600.000*\n"
-        "🔹 Plazo de financiación: *78 meses*\n"
-        "🔹 Cuota mensual aproximada: *$1.496.005*\n\n"
-        "Estos valores son aproximados y pueden cambiar según las condiciones vigentes, "
-        "intereses, seguros y la evaluación de SERCAPITAL. "
-        "¿Esta cuota aproximada se ajusta a tu presupuesto mensual?"
+        "🔹 El saldo se puede financiar hasta en *84 cuotas con SERCAPITAL*.\n\n"
+        "La cuota mensual del saldo la determina SERCAPITAL porque incluye intereses, "
+        "seguros, condiciones vigentes y la evaluación. "
+        "¿Esta cuota inicial se ajusta a tu presupuesto?"
     )
 
 _BROCHURES_POR_SLUG = {
@@ -1587,7 +1603,7 @@ def _respuesta_simulacion_financiacion(
     simulacion = _simular_financiacion(precio_financiado, estructura)
     codigo = str(lote.get("codigo") or "").strip()
     area = f"{float(lote.get('area_m2')):g}"
-    identificacion = f"lote *{codigo}* de *{area} m²*" if codigo else f"lote de *{area} m²*"
+    identificacion = f"lote {codigo} de {area} m²" if codigo else f"lote de {area} m²"
 
     lineas = [
         f"💳 *Simulación para el {identificacion}*",
@@ -1603,14 +1619,27 @@ def _respuesta_simulacion_financiacion(
             f"• Cuota inicial: *{_formatear_pesos_colombia(simulacion['cuota_inicial_mensual'])}/mes* "
             f"durante {simulacion['cuota_inicial_meses']} meses"
         ),
-        (
-            f"• Saldo: *{_formatear_pesos_colombia(simulacion['saldo_mensual'])}/mes* "
-            f"durante {simulacion['saldo_meses']} meses"
-        ),
-        "",
-        "La simulación se calcula sobre el precio financiado registrado; el valor de contado es una modalidad distinta.",
-        "¿Esta cuota se ajusta a tu presupuesto mensual?",
     ])
+    if slug in _PROYECTOS_FINANCIACION_DIRECTA:
+        lineas.extend([
+            (
+                f"• Saldo: *{_formatear_pesos_colombia(simulacion['saldo_mensual'])}/mes* "
+                f"durante {simulacion['saldo_meses']} meses"
+            ),
+            "",
+            "La simulación se calcula sobre el precio financiado registrado; el valor de contado es una modalidad distinta.",
+            "¿Esta cuota se ajusta a tu presupuesto mensual?",
+        ])
+    else:
+        lineas.extend([
+            "• Saldo: financiado hasta en *84 cuotas con SERCAPITAL*",
+            "",
+            (
+                "La cuota mensual del saldo la define SERCAPITAL porque incluye intereses, "
+                "seguros, condiciones vigentes y la evaluación."
+            ),
+            "¿Quieres que revisemos si la cuota inicial se ajusta a tu presupuesto?",
+        ])
     return "\n".join(lineas)
 
 

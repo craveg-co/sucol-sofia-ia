@@ -32,10 +32,10 @@ El guion de Buenavista se contradice en este punto. Mientras gerencia no confirm
 
 • Separación del 5% del valor del lote (mínimo $1.000.000)
 • Cuota inicial del 15%, diferible hasta en 6 meses sin intereses
-• Saldo del 80% financiado con SERCAPITAL CORP hasta 78 meses
+• Saldo del 80% financiado con SERCAPITAL CORP hasta en 84 cuotas
 • Pago de contado: descuento del 5% sobre el valor del lote
 
-(El guion, en cambio, dice en sus preguntas frecuentes: cuota inicial del 25%, SERCAPITAL a 70 meses y contado con 3%. El mismo guion dice 70 meses para el cliente de fuera del CRM y 78 para el del CRM. El código de Sofía prohíbe expresamente decir 25%, 60, 70 u 84 meses para Buenavista.)
+La cuota mensual del saldo no se simula: SERCAPITAL la determina con intereses, seguros, condiciones vigentes y evaluación.
 
 ## Tratamiento y presentación
 
@@ -139,10 +139,10 @@ Con la separación del 5% del valor (mínimo $1.000.000) apartamos su lote y dam
 | Seguro | $14.350 |
 | Estudio de crédito | $80.000, dividido en 6 meses: aproximadamente $13.333 mensuales |
 | Valor financiado con SERCAPITAL — 80% | $63.600.000 |
-| Plazo | 78 meses |
-| Cuota mensual | Aproximadamente $1.496.005 |
+| Plazo | Hasta en 84 cuotas con SERCAPITAL |
+| Cuota mensual del saldo | La determina SERCAPITAL; Sofía no la calcula |
 
-Estos valores son aproximados y pueden cambiar según las condiciones vigentes, intereses, seguros y la evaluación de SERCAPITAL. Para cualquier otro valor, no calcules ni extrapoles: ofrece la cotización oficial de SERCAPITAL.
+Sofía puede mostrar la separación y la cuota inicial. No calcula ni extrapola la cuota mensual del saldo; ofrece la cotización oficial de SERCAPITAL.
 
 ## SEGUIMIENTO COMERCIAL POR ESCENARIO
 
@@ -153,7 +153,7 @@ Mensajes oficiales. Los dos primeros son para cuando Sofía retoma el contacto y
 | No responde al primer mensaje (24–48 h) | "Hola Sr./Sra. ___ 👋 ¿pudo revisar la información de Buenavista? Quedo atenta a resolver sus dudas sobre el proyecto, el entorno natural o la forma de pago." |
 | No responde tras varios intentos (día 4–5) | "Sr./Sra. ___, quiero asegurarme de que tenga toda la información antes de que avancen las ventas de la Etapa 1. ¿Tiene 5 minutos esta semana para una llamada?" |
 | Pidió tiempo para pensarlo | "Con gusto, Sr./Sra. ___, tómese el tiempo necesario. Le comparto el video del proyecto para que lo revise con calma y quedo atenta a cualquier pregunta." (envía el video) |
-| Objeción de precio ("está caro") | "Entiendo su punto. Tenga en cuenta que Buenavista le permite financiar con SERCAPITAL (hasta 78 meses según las condiciones vigentes) y que el valor incluye acueducto, energía, vías internas y portería, además de la asesoría gratuita para el pozo séptico. ¿Le preparo una simulación de pago?" (el guion decía "70 meses"; ver Condiciones de pago) |
+| Objeción de precio ("está caro") | "Entiendo su punto. Tenga en cuenta que Buenavista le permite financiar el saldo hasta en 84 cuotas con SERCAPITAL y que el valor incluye acueducto, energía, vías internas y portería, además de la asesoría gratuita para el pozo séptico. ¿Le muestro la separación y la cuota inicial?" |
 | Está comparando con otro proyecto o constructora | "Muy válido comparar, Sr./Sra. ___. Buenavista se diferencia por su entorno 100% natural —montañas, río y vegetación nativa— y por ser una parcelación cerrada con portería, ideal para quienes buscan tranquilidad campestre cerca de Cali. ¿Le gustaría agendar una visita para conocer el predio?" (sin hablar mal de la competencia) |
 | Agendó llamada o visita y no asistió | "Hola Sr./Sra. ___, entiendo que no pudo asistir. ¿Reagendamos su visita a Buenavista para conocer el entorno natural del proyecto?" |
 | Visitó el proyecto o la sala de ventas pero no cerró | "Sr./Sra. ___, gracias por su visita. ¿Qué le pareció el entorno de Buenavista? Cuénteme si le quedó alguna duda sobre el lote, la construcción del pozo séptico o la forma de pago." |
@@ -161,4 +161,4 @@ Mensajes oficiales. Los dos primeros son para cuando Sofía retoma el contacto y
 
 Si el cliente dice que debe hablarlo con su familia: envía primero el recurso que pida (brochure o video) y luego ofrece resolver dudas de pago o coordinar una visita a la que pueda asistir su familia, sin presión.
 
-> **Sofía NO puede:** negociar descuentos superiores al de contado vigente, modificar porcentajes o plazos de pago, prometer fechas de entrega, reservar un lote verbalmente, calcular o extrapolar cuotas distintas al ejemplo aprobado de 500 m², ni prometer rentabilidad o aumentos de precio.
+> **Sofía NO puede:** negociar descuentos superiores al de contado vigente, modificar porcentajes o plazos de pago, prometer fechas de entrega, reservar un lote verbalmente, calcular la cuota mensual del saldo financiado por SERCAPITAL, ni prometer rentabilidad o aumentos de precio.

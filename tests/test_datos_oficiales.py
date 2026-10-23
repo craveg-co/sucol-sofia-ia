@@ -179,7 +179,10 @@ class DatosOficialesTest(unittest.TestCase):
         self.assertIn("Precio de contado: *$55.917.972*", respuesta)
         self.assertIn("Separación: *$2.935.694*", respuesta)
         self.assertIn("$2.446.411/mes", respuesta)
-        self.assertIn("$684.995/mes", respuesta)
+        self.assertIn("hasta en *84 cuotas con SERCAPITAL*", respuesta)
+        self.assertNotIn("$684.995/mes", respuesta)
+        self.assertIn("intereses", respuesta)
+        self.assertIn("seguros", respuesta)
 
     def test_reclamo_por_usar_contado_corrige_la_base_financiada(self):
         respuesta = _respuesta_simulacion_financiacion(
@@ -200,7 +203,8 @@ class DatosOficialesTest(unittest.TestCase):
         )
 
         self.assertIn("$58.713.871", respuesta)
-        self.assertIn("modalidad distinta", respuesta)
+        self.assertIn("84 cuotas con SERCAPITAL", respuesta)
+        self.assertNotIn("$684.995/mes", respuesta)
 
     def test_contexto_simula_sobre_precio_financiado(self):
         contexto = _construir_contexto_crm(
@@ -220,13 +224,32 @@ class DatosOficialesTest(unittest.TestCase):
         self.assertIn("precio financiado $58,713,871", contexto)
         self.assertIn("separación $2,935,694", contexto)
         self.assertIn("No calcules ni apliques un descuento adicional", contexto)
+        self.assertIn("Saldo financiado hasta en 84 cuotas con SERCAPITAL", contexto)
+        self.assertNotIn("saldo ≈ $684,995/mes", contexto)
 
-    def test_praderas_guachinte_financia_el_saldo_a_72_meses(self):
+    def test_praderas_guachinte_financia_el_saldo_hasta_84_cuotas(self):
         estructura = _estructura_financiacion({"slug": "praderas_guachinte"})
 
         self.assertEqual(estructura["cuota_inicial_pct"], 0.25)
         self.assertEqual(estructura["cuota_inicial_meses"], 6)
-        self.assertEqual(estructura["saldo_meses"], 72)
+        self.assertEqual(estructura["saldo_meses"], 84)
+
+    def test_reservas_ilama_conserva_calculo_de_saldo_directo(self):
+        respuesta = _respuesta_simulacion_financiacion(
+            "Muéstrame la simulación",
+            [{"role": "assistant", "content": "El lote R1 de 1000 m²."}],
+            {"slug": "reservas_ilama", "nombre": "Reservas de Ilama"},
+            [{
+                "codigo": "R1",
+                "area_m2": 1000,
+                "precio_total": 100_000_000,
+                "precio_contado": 100_000_000,
+                "precio_financiado": 120_000_000,
+            }],
+        )
+
+        self.assertIn("Saldo: *$4.000.000/mes* durante 24 meses", respuesta)
+        self.assertNotIn("SERCAPITAL", respuesta)
 
     def test_brochure_existe_para_los_slugs_reales_del_crm(self):
         # Slugs tal como están en la tabla proyectos del CRM.
@@ -247,11 +270,11 @@ class DatosOficialesTest(unittest.TestCase):
             {"slug": "buenavista", "nombre": "Buenavista"},
         )
 
-        self.assertIn("$1.496.005", respuesta)
-        self.assertIn("78 meses", respuesta)
+        self.assertNotIn("$1.496.005", respuesta)
+        self.assertIn("84 cuotas con SERCAPITAL", respuesta)
         self.assertIn("$14.350", respuesta)
         self.assertIn("$80.000", respuesta)
-        self.assertIn("pueden cambiar", respuesta)
+        self.assertIn("determina SERCAPITAL", respuesta)
 
     def test_ejemplo_de_cuota_buenavista_no_aplica_a_otro_proyecto(self):
         respuesta = _respuesta_cuota_buenavista(
@@ -267,7 +290,7 @@ class DatosOficialesTest(unittest.TestCase):
         self.assertEqual(estructura["separacion_pct"], 0.05)
         self.assertEqual(estructura["cuota_inicial_pct"], 0.15)
         self.assertEqual(estructura["cuota_inicial_meses"], 6)
-        self.assertEqual(estructura["saldo_meses"], 78)
+        self.assertEqual(estructura["saldo_meses"], 84)
 
     def test_buenavista_no_inyecta_simulacion_de_sercapital(self):
         contexto = _construir_contexto_crm(
@@ -279,6 +302,7 @@ class DatosOficialesTest(unittest.TestCase):
         self.assertIn("Precio CRM: $79,500,000", contexto)
         self.assertNotIn("Simulación estándar", contexto)
         self.assertNotIn("saldo ≈", contexto)
+        self.assertIn("hasta en 84 cuotas con SERCAPITAL", contexto)
 
     def test_extrae_texto_aunque_haya_bloques_auxiliares_antes(self):
         respuesta = _extraer_texto_respuesta([

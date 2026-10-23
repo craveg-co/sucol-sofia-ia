@@ -8,7 +8,7 @@
 | **Tipo** | Parcelación campestre abierta y planificada. Proyecto boutique de solo 20 lotes |
 | **Disponibilidad** | Dato dinámico: usar exclusivamente el inventario incluido desde el CRM |
 | **Precio** | Dato dinámico: usar exclusivamente el precio incluido desde el CRM |
-| **Pago** | 5% sep + 15% CI en 2 meses + saldo hasta 18 meses directo con SUCOL. Alternativa: SERCAPITAL hasta 40 meses |
+| **Pago** | 5% sep + 15% CI en 2 meses + saldo hasta 18 meses directo con SUCOL. Alternativa: SERCAPITAL hasta en 84 cuotas |
 | **Entrega** | Proyección diciembre 2026 |
 | **Estado** | Venta activa. La cantidad disponible debe tomarse del CRM |
 | **Construcción** | Hasta 2 pisos + terraza. Ideal para casas campestres modernas o rústicas |
@@ -36,7 +36,7 @@ Es un proyecto boutique de 20 unidades con todos los permisos ambientales aproba
 Entiendo. Revisa la disponibilidad actual indicada por el CRM y comunícala exactamente, sin asumir que sigue siendo la última unidad. ¿Cuándo pueden venir a conocer el proyecto?
 
 **El plazo de financiación es corto:**
-Tenemos dos opciones: 18 meses directo con SUCOL, o hasta 40 meses con SERCAPITAL. Cuéntame cuánto puedes destinar mensualmente y te presento la opción que mejor se adapta.
+Tenemos dos opciones: 18 meses directo con SUCOL, o hasta en 84 cuotas con SERCAPITAL. Cuéntame cuánto puedes destinar mensualmente y te presento la opción que mejor se adapta.
 
 > **ALERTA COMERCIAL:** Si el inventario actual del CRM confirma una sola unidad, comunicar esa escasez sin modificar el dato y trasladar a Dirección Comercial.
 
