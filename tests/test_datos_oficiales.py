@@ -28,6 +28,7 @@ from agent.brain import (
     _respuesta_operativa_visita,
     _respuesta_listado_proyectos,
     _respuesta_precio_area_exacto,
+    _respuesta_simulacion_financiacion,
     _sanitizar_historial,
     _url_brochure_proyecto,
     _validar_respuesta_oficial,
@@ -152,6 +153,72 @@ class DatosOficialesTest(unittest.TestCase):
         )
 
         self.assertIn("$55.918.008", respuesta)
+
+    def test_si_a_oferta_financiacion_usa_precio_financiado_del_lote(self):
+        respuesta = _respuesta_simulacion_financiacion(
+            "Sí",
+            [{
+                "role": "assistant",
+                "content": (
+                    "En Santa Elena, el lote A20 de 72 m² tiene un precio de contado de "
+                    "$55.917.972 y financiado de $58.713.871. "
+                    "¿Quieres que te muestre la financiación para este lote?"
+                ),
+            }],
+            PROYECTO,
+            [{
+                "codigo": "A20",
+                "area_m2": 72,
+                "precio_total": 55_917_972,
+                "precio_contado": 55_917_972,
+                "precio_financiado": 58_713_871,
+            }],
+        )
+
+        self.assertIn("Precio financiado: *$58.713.871*", respuesta)
+        self.assertIn("Precio de contado: *$55.917.972*", respuesta)
+        self.assertIn("Separación: *$2.935.694*", respuesta)
+        self.assertIn("$2.446.411/mes", respuesta)
+        self.assertIn("$684.995/mes", respuesta)
+
+    def test_reclamo_por_usar_contado_corrige_la_base_financiada(self):
+        respuesta = _respuesta_simulacion_financiacion(
+            "Sofia, por qué me das la simulación de financiación con el precio de contado?",
+            [
+                {"role": "assistant", "content": "El lote A20 de 72 m² cuesta $55.917.972 de contado."},
+                {"role": "user", "content": "Sí"},
+                {"role": "assistant", "content": "Simulación sobre $55.917.972."},
+            ],
+            PROYECTO,
+            [{
+                "codigo": "A20",
+                "area_m2": 72,
+                "precio_total": 55_917_972,
+                "precio_contado": 55_917_972,
+                "precio_financiado": 58_713_871,
+            }],
+        )
+
+        self.assertIn("$58.713.871", respuesta)
+        self.assertIn("modalidad distinta", respuesta)
+
+    def test_contexto_simula_sobre_precio_financiado(self):
+        contexto = _construir_contexto_crm(
+            None,
+            [{
+                "codigo": "A20",
+                "area_m2": 72,
+                "precio_total": 55_917_972,
+                "precio_contado": 55_917_972,
+                "precio_financiado": 58_713_871,
+            }],
+            proyecto=PROYECTO,
+        )
+
+        self.assertIn("Precio contado CRM: $55,917,972", contexto)
+        self.assertIn("Precio financiado CRM: $58,713,871", contexto)
+        self.assertIn("precio financiado $58,713,871", contexto)
+        self.assertIn("separación $2,935,694", contexto)
 
     def test_praderas_guachinte_financia_el_saldo_a_72_meses(self):
         estructura = _estructura_financiacion({"slug": "praderas_guachinte"})

@@ -592,11 +592,13 @@ def _construir_contexto_crm(
             clave = str(area) if area is not None else "Área no registrada"
             grupo = resumen_areas.setdefault(
                 clave,
-                {"cantidad": 0, "precios": []},
+                {"cantidad": 0, "precios": [], "precios_financiados": []},
             )
             grupo["cantidad"] += 1
             if lote.get("precio_total") is not None:
                 grupo["precios"].append(lote["precio_total"])
+            if lote.get("precio_financiado") is not None:
+                grupo["precios_financiados"].append(lote["precio_financiado"])
 
         def _orden_area(item):
             try:
@@ -613,14 +615,33 @@ def _construir_contexto_crm(
             if precios:
                 minimo = min(precios)
                 maximo = max(precios)
-                if minimo == maximo:
+                precios_financiados = grupo["precios_financiados"]
+                if precios_financiados:
+                    if minimo == maximo:
+                        linea += f" | Precio contado CRM: ${minimo:,.0f}"
+                    else:
+                        linea += f" | Rango contado CRM: ${minimo:,.0f} a ${maximo:,.0f}"
+                    minimo_financiado = min(precios_financiados)
+                    maximo_financiado = max(precios_financiados)
+                    if minimo_financiado == maximo_financiado:
+                        linea += f" | Precio financiado CRM: ${minimo_financiado:,.0f}"
+                    else:
+                        linea += (
+                            f" | Rango financiado CRM: ${minimo_financiado:,.0f} "
+                            f"a ${maximo_financiado:,.0f}"
+                        )
+                    base_simulacion = minimo_financiado
+                elif minimo == maximo:
                     linea += f" | Precio CRM: ${minimo:,.0f}"
                 else:
                     linea += f" | Rango CRM: ${minimo:,.0f} a ${maximo:,.0f}"
+                if not precios_financiados:
+                    base_simulacion = minimo
                 if slug_proyecto != "buenavista":
-                    sim = _simular_financiacion(minimo, estructura_fin)
+                    sim = _simular_financiacion(base_simulacion, estructura_fin)
                     linea += (
-                        f" | Simulación estándar sobre ${float(minimo):,.0f}: "
+                        f" | Simulación estándar sobre el precio financiado "
+                        f"${float(base_simulacion):,.0f}: "
                         f"separación ${sim['separacion']:,.0f}, "
                         f"cuota inicial ≈ ${sim['cuota_inicial_mensual']:,.0f}/mes "
                         f"x {sim['cuota_inicial_meses']} meses, "
@@ -1473,6 +1494,119 @@ def _respuesta_precio_area_exacto(
         "según el inventario actual. "
         f"¿Quieres que te muestre la financiación para este {unidad}?"
     )
+
+
+_PATRON_SOLICITUD_SIMULACION = re.compile(
+    r"\b(simulaci[oó]n|financiaci[oó]n|financiar|cuotas?|mensualidad)\b",
+    re.IGNORECASE,
+)
+
+_PATRON_AFIRMACION_CORTA = re.compile(
+    r"^\s*(?:s[ií]+|claro|dale|bueno|ok(?:ay)?|listo|por\s+favor)\s*[.!]*\s*$",
+    re.IGNORECASE,
+)
+
+
+def _lote_referenciado_en_conversacion(
+    mensaje: str,
+    historial: list[dict],
+    lotes: list[dict],
+) -> dict | None:
+    """Recupera la unidad comercial mencionada o, en su defecto, el área reciente."""
+    textos = [mensaje or ""]
+    textos.extend(
+        str(item.get("content") or "")
+        for item in reversed(historial or [])
+        if item.get("role") == "assistant"
+    )
+
+    for texto in textos:
+        for lote in lotes:
+            codigo = str(lote.get("codigo") or "").strip()
+            if codigo and re.search(rf"(?<!\w){re.escape(codigo)}(?!\w)", texto, re.IGNORECASE):
+                return lote
+
+    for texto in textos:
+        coincidencia_area = _PATRON_AREA_SOLICITADA.search(texto)
+        if not coincidencia_area:
+            continue
+        area = float(coincidencia_area.group(1).replace(",", "."))
+        candidatos = []
+        for lote in lotes:
+            try:
+                if abs(float(lote.get("area_m2")) - area) < 0.01:
+                    candidatos.append(lote)
+            except (TypeError, ValueError):
+                continue
+        if candidatos:
+            return min(
+                candidatos,
+                key=lambda lote: (
+                    float(lote.get("precio_financiado") or lote.get("precio_total") or float("inf")),
+                    str(lote.get("codigo") or ""),
+                ),
+            )
+    return None
+
+
+def _respuesta_simulacion_financiacion(
+    mensaje: str,
+    historial: list[dict],
+    proyecto: dict | None,
+    lotes: list[dict],
+) -> str | None:
+    """Calcula la financiación sobre el precio financiado de la unidad elegida."""
+    if not proyecto or not lotes:
+        return None
+
+    slug = str(proyecto.get("slug") or "").strip().lower()
+    if slug in {"buenavista", "cascata"}:
+        return None
+
+    solicitud_explicita = bool(_PATRON_SOLICITUD_SIMULACION.search(mensaje or ""))
+    afirmacion = bool(_PATRON_AFIRMACION_CORTA.fullmatch(mensaje or ""))
+    ultimo_asistente = _ultimo_asistente(historial)
+    confirma_oferta = afirmacion and bool(
+        re.search(r"financiaci[oó]n|simulaci[oó]n", ultimo_asistente, re.IGNORECASE)
+    )
+    if not solicitud_explicita and not confirma_oferta:
+        return None
+
+    lote = _lote_referenciado_en_conversacion(mensaje, historial, lotes)
+    if not lote or lote.get("precio_financiado") is None:
+        return None
+
+    precio_financiado = float(lote["precio_financiado"])
+    precio_contado = lote.get("precio_contado") or lote.get("precio_total")
+    estructura = _estructura_financiacion(proyecto)
+    simulacion = _simular_financiacion(precio_financiado, estructura)
+    codigo = str(lote.get("codigo") or "").strip()
+    area = f"{float(lote.get('area_m2')):g}"
+    identificacion = f"lote *{codigo}* de *{area} m²*" if codigo else f"lote de *{area} m²*"
+
+    lineas = [
+        f"💳 *Simulación para el {identificacion}*",
+        "",
+        f"Precio financiado: *{_formatear_pesos_colombia(precio_financiado)}*",
+    ]
+    if precio_contado is not None:
+        lineas.append(f"Precio de contado: *{_formatear_pesos_colombia(precio_contado)}*")
+    lineas.extend([
+        "",
+        f"• Separación: *{_formatear_pesos_colombia(simulacion['separacion'])}*",
+        (
+            f"• Cuota inicial: *{_formatear_pesos_colombia(simulacion['cuota_inicial_mensual'])}/mes* "
+            f"durante {simulacion['cuota_inicial_meses']} meses"
+        ),
+        (
+            f"• Saldo: *{_formatear_pesos_colombia(simulacion['saldo_mensual'])}/mes* "
+            f"durante {simulacion['saldo_meses']} meses"
+        ),
+        "",
+        "La simulación se calcula sobre el precio financiado registrado; el valor de contado es una modalidad distinta.",
+        "¿Esta cuota se ajusta a tu presupuesto mensual?",
+    ])
+    return "\n".join(lineas)
 
 
 _PATRON_RESPUESTA_INCOMPLETA = re.compile(
@@ -2457,6 +2591,15 @@ async def generar_respuesta_con_tools(
     if respuesta_precio:
         return respuesta_precio
 
+    respuesta_simulacion = _respuesta_simulacion_financiacion(
+        mensaje,
+        historial,
+        proyecto,
+        lotes_disponibles or [],
+    )
+    if respuesta_simulacion:
+        return respuesta_simulacion
+
     respuesta_cuota = _respuesta_cuota_buenavista(mensaje, proyecto)
     if respuesta_cuota:
         return respuesta_cuota
@@ -2714,6 +2857,15 @@ async def generar_respuesta(
     )
     if respuesta_precio:
         return respuesta_precio
+
+    respuesta_simulacion = _respuesta_simulacion_financiacion(
+        mensaje,
+        historial,
+        proyecto,
+        lotes_disponibles or [],
+    )
+    if respuesta_simulacion:
+        return respuesta_simulacion
 
     respuesta_cuota = _respuesta_cuota_buenavista(mensaje, proyecto)
     if respuesta_cuota:
